@@ -11,7 +11,7 @@ Winlator@Frost is an Android application that lets you to run Windows (x86_64) a
 
 Subscribe My YouTube Channel [Click Here](https://youtube.com/@emuzone20?si=FUsBJ7ZmLY7Ktu1y)​
 
-Join us in our official Discord server [Click Here](https://discord.gg/TZ3AMFhbRU)​
+Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq2)​
 
 # Winlator@Frost Installation
 
