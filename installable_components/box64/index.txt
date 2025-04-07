@@ -1,3 +1,4 @@
+For proot V9 are not supported for this box64 version!
 box64-0.2.7.tzst
 box64-0.2.8.tzst
 box64-0.2.9.tzst
