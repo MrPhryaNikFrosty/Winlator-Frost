@@ -59,12 +59,12 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 # System requirement for Winlator@Frost
 ## Device
 - Android: 8.0 or newer
-- RAM: 4 GB are minimum requirements but 6 GB are recommended
+- RAM: 3 ~ 4 GB are minimum requirements but 6 GB are recommended
 - ROM: Any size of ROM are supported and SD Card are also supported but some type of SD Card doesn't recognize as drive in winlator
 - Architecture: at least arm64-v8a are required
 
 ## Graphics Driver for device GPU
-- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 8s gen 4, 7s gen 3, 6 gen 4)` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
+- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 7 gen 3, 8s gen 4, 7s gen 3, 6 gen 4)` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
 - `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali but not all Mali are works
 - `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
 - `LLVMPIPE` - Use this if you want to run software apps `(not for game)`, this feature are only available in winlator 7.1 releases
