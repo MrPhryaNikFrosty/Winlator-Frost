@@ -58,7 +58,7 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 #### To show the VKD3D fps hud, you can try to add this env into environment variables:
     VK_INSTANCE_LAYERS=VK_LAYER_MESA_overlay
 
-- Please take note that after the before `=` are name and after it are value
+- Please take note that the before `=` are name and after it are value
 
 # System requirement for Winlator@Frost
 ## Device
