@@ -52,9 +52,13 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 - Enabled the `BOX64_DYNAREC_WEAKBARRIER` can improve the performance for 64 bit games
 - To display low resolution games correctly, try to enabling the `Force Fullscreen` option in the shortcut settings
 - To speed up the installers, try changing the Box64 preset to `Intermediate` in Container Settings -> Advanced Tab
-- You can now enable `MANGOHUD` for glibc version, not yet for proot
+- You can now enable `MANGOHUD` for glibc version, not yet for proot and winlator 10 version
 - For some unity games especially to fix unity games from crashing, try use stability preset and add `-force-gfx-direct -​force-d3d11-singlethread` in the exec arguments inside the shortcut of the unity games
 - For some unity games, the games might not be able to launch in proot, so please try in glibc
+#### To show the VKD3D fps hud, you can try to add this env into environment variables:
+    VK_INSTANCE_LAYERS=VK_LAYER_MESA_overlay
+
+- Please take note that after the before `=` are name and after it are value
 
 # System requirement for Winlator@Frost
 ## Device
@@ -64,10 +68,10 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 - Architecture: at least arm64-v8a are required
 
 ## Graphics Driver for device GPU
-- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 7 gen 3, 8s gen 4, 7s gen 3, 6 gen 4)` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
+- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 7 gen 4, 8s gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
 - `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali but not all Mali are works
-- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
-- `LLVMPIPE` - Use this if you want to run software apps `(not for game)`, this feature are only available in winlator 7.1 releases
+- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
+- `LLVMPIPE` - Software renderer, not recommended for games. Use this if you want to run software apps, this feature are only available in winlator 7.1 releases
 
 # Known issue in Winlator@Frost
 - ~~Snapdragon 8s gen 3 `Adreno​ 735` container not starting issue~~ (now it's working)
