@@ -25,13 +25,13 @@ Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq
 ----
 
 - Test on Honor X9b (SD 6 GEN 1)
-[![Play on Youtube](https://i.ytimg.com/vi_webp/g0-XafDktx0/hqdefault.webp)](https://youtu.be/g0-XafDktx0?si=x2KqbS2vvuVRDkzv)
+[![Play on Youtube](https://i.ytimg.com/vi/yT8HeDDXYNk/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLBg6mwWOnCdGRZ_j0fr4rOyc_4oyQ)](https://youtu.be/yT8HeDDXYNk?si=WqEvuNUsxdjElomr)
 
-- Test on Poco F3 (Snapdragon 870)
+- Test on Poco F3 (SD 870)
 [![Play on Youtube](https://i.ytimg.com/vi/lWRubu4LITg/hqdefault.jpg?sqp=-oaymwFBCNACELwBSFryq4qpAzMIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB8AEB-AH-CYAC0AWKAgwIABABGC4gaChyMA8=&rs=AOn4CLCiWNAFDSSx8jICLbdoVhfUGxnDoA)](https://youtu.be/lWRubu4LITg?si=u0v8kX7HiKpdeo-1)
 
 - Test on Honor Magic 5 (SD 8 GEN 2)
-[![Play on Youtube](https://i.ytimg.com/vi_webp/xGRzNVE6WLg/hqdefault.webp)](https://youtu.be/xGRzNVE6WLg?si=Z4tjD_rxaiJok6d4)
+[![Play on Youtube](https://i.ytimg.com/vi/lRmnb_3untM/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLD2qDb4xNO8AYoV0yAqvZoG2o-PkQ)](https://youtu.be/lRmnb_3untM?si=8bMl1BxodFHgOAnm)
 
 - Test on Poco X5 (SD 695)
 [![Play on Youtube](https://i.ytimg.com/vi_webp/yQl-OPTIb3E/hqdefault.webp)](https://youtu.be/yQl-OPTIb3E?si=QcSX-oz1CfWwVmXb)
@@ -59,14 +59,14 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 # System requirement for Winlator@Frost
 ## Device
 - Android: 8.0 or newer
-- RAM: 3 ~ 4 GB are minimum requirements but 6 GB and higher are recommended
+- RAM: 4 GB are minimum requirements but 6 GB are recommended
 - ROM: Any size of ROM are supported and SD Card are also supported but some type of SD Card doesn't recognize as drive in winlator
 - Architecture: at least arm64-v8a are required
 
 ## Graphics Driver for device GPU
-- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 8s gen 4, 7 gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
+- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 8s gen 4, 7s gen 3, 6 gen 4)` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
 - `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali but not all Mali are works
-- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
+- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
 - `LLVMPIPE` - Use this if you want to run software apps `(not for game)`, this feature are only available in winlator 7.1 releases
 
 # Known issue in Winlator@Frost
