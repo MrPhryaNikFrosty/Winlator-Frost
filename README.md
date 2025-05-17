@@ -27,8 +27,8 @@ Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq
 - Test on Honor X9b (SD 6 GEN 1)
 [![Play on Youtube](https://i.ytimg.com/vi_webp/g0-XafDktx0/hqdefault.webp)](https://youtu.be/g0-XafDktx0?si=x2KqbS2vvuVRDkzv)
 
-- Test on Huawei Nova 7 (Kirin 985)
-[![Play on Youtube](https://i.ytimg.com/vi_webp/XzHptfLZEpc/hqdefault.webp)](https://youtu.be/XzHptfLZEpc?si=xp4gV4pJbqmyzrYc)
+- Test on Poco F3 (Snapdragon 870)
+[![Play on Youtube](https://i.ytimg.com/vi/lWRubu4LITg/hqdefault.jpg?sqp=-oaymwFBCNACELwBSFryq4qpAzMIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB8AEB-AH-CYAC0AWKAgwIABABGC4gaChyMA8=&rs=AOn4CLCiWNAFDSSx8jICLbdoVhfUGxnDoA)](https://youtu.be/lWRubu4LITg?si=u0v8kX7HiKpdeo-1)
 
 - Test on Honor Magic 5 (SD 8 GEN 2)
 [![Play on Youtube](https://i.ytimg.com/vi_webp/xGRzNVE6WLg/hqdefault.webp)](https://youtu.be/xGRzNVE6WLg?si=Z4tjD_rxaiJok6d4)
@@ -115,6 +115,5 @@ This project has been in constant development since version 1.0, the current app
 - ([Box64 Proot](https://github.com/ryanfortner/box64-debs)) by ryanfortner
 - Some parts of the prefix are taken from ([ajay prefix](https://github.com/ajay9634/Ajay-prefix))​. Many thanks to him for providing such a useful apps that can be put in the mod
 
-Many thanks to [ptitSeb](https://github.com/ptitSeb) (Box86/Box64), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/) (Turnip), [alexvorxx](https://github.com/alexvorxx) 
-(Mods/Tips) and others.
+Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx) and others.<br>
 Thank you to all the people who believe in this project.
