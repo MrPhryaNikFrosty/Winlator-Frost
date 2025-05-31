@@ -1,6 +1,7 @@
 <p align="center">
 	<img src="logo.png" width="376" height="128" alt="Winlator-Frost Logo" />  
 </p>
+<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&width=500&lines=Welcome+to+Winlator%40Frost+Official+Github!;If+you+like+the+mod%2C+please+star+the+repo;Established+since+2023;Modded+with+%E2%9D%A4%EF%B8%8F+from+Thailand" alt="Typing SVG" /></a>
 
 # Winlator@Frost
 <p align="left">
@@ -20,6 +21,7 @@ Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq
 3. Now you can enjoy your favorite pc games! But please make sure that you select the renderer based on your phone chips, you can read the system requirements below to learn more
 4. You can also try out our new winlator mod glibc (for now 7.1.3) from the releases
 5. For older or legacy version of Winlator@Frost which are not available in Github releases can get it from [here](https://mega.nz/folder/dQtDzI7a#47pl7EQ8AWwY2jV-665ikQ)
+6. If you like the mod, please star the repo 😁
 
 # Video testing of Winlator@Frost by me
 ----
@@ -55,6 +57,7 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 - You can now enable `MANGOHUD` for glibc version, not yet for proot and winlator 10 version
 - For some unity games especially to fix unity games from crashing, try use stability preset and add `-force-gfx-direct -​force-d3d11-singlethread` in the exec arguments inside the shortcut of the unity games
 - For some unity games, the games might not be able to launch in proot, so please try in glibc
+
 #### To show the VKD3D fps hud, you can try to add this env into environment variables:
     VK_INSTANCE_LAYERS=VK_LAYER_MESA_overlay
 
@@ -70,8 +73,8 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 ## Graphics Driver for device GPU
 - `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 7 gen 4, 8s gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
 - `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali but not all Mali are works
-- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only DX9 games and OpenGL 3.1 below games are working
-- `LLVMPIPE` - Software renderer, not recommended for games. Use this if you want to run software apps, this feature are only available in winlator 7.1 releases
+- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only Ddraw, DX8 or DX9 games and OpenGL 3.1 below games are working
+- `LLVMPIPE` - Software renderer, not recommended for games. Use this if you want to run software apps, this feature are only available in winlator 7.1 releases or older
 
 # Known issue in Winlator@Frost
 - ~~Snapdragon 8s gen 3 `Adreno​ 735` container not starting issue~~ (now it's working)
@@ -117,7 +120,7 @@ This project has been in constant development since version 1.0, the current app
 - CNC DDraw ([github.com/FunkyFr3sh/cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw))
 - ([Winlator Turnip Driver](https://github.com/K11MCH1/WinlatorTurnipDrivers))​ by K11MCH1
 - ([Box64 Proot](https://github.com/ryanfortner/box64-debs)) by ryanfortner
-- Some parts of the prefix are taken from ([ajay prefix](https://github.com/ajay9634/Ajay-prefix))​. Many thanks to him for providing such a useful apps that can be put in the mod
+- ([Ajay prefix](https://github.com/ajay9634/Ajay-prefix))​. Many thanks to him for providing such a useful apps that can be put in the mod
 
 Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx) and others.<br>
 Thank you to all the people who believe in this project.
