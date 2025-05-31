@@ -16,7 +16,7 @@ Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq
 
 # Winlator@Frost Installation
 
-1. Download and install the APK (Winlator@Frost 10.0Final V2.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
+1. Download and install the APK (Winlator@Frost 10.0Final V4.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
 2. Launch the app and wait for the installation process to finish
 3. Now you can enjoy your favorite pc games! But please make sure that you select the renderer based on your phone chips, you can read the system requirements below to learn more
 4. You can also try out our new winlator mod glibc (for now 7.1.3) from the releases
@@ -120,7 +120,7 @@ This project has been in constant development since version 1.0, the current app
 - CNC DDraw ([github.com/FunkyFr3sh/cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw))
 - ([Winlator Turnip Driver](https://github.com/K11MCH1/WinlatorTurnipDrivers))​ by K11MCH1
 - ([Box64 Proot](https://github.com/ryanfortner/box64-debs)) by ryanfortner
-- ([Ajay prefix](https://github.com/ajay9634/Ajay-prefix))​. Many thanks to him for providing such a useful apps that can be put in the mod
+- ([Ajay prefix](https://github.com/ajay9634/Ajay-prefix))​
 
 Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx) and others.<br>
-Thank you to all the people who believe in this project.
+Thanks to all the people who have been contributed in this project that I couldn't mentioned it at here and also to those who believe and trusted this project from the beginning until today
