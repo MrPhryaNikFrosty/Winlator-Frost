@@ -71,7 +71,7 @@ For other version of winlator you can run it using `3.3COMPAT` or `4.0`
 - Architecture: at least arm64-v8a are required
 
 ## Graphics Driver for device GPU
-- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 7 gen 4, 8s gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
+- `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 8s gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
 - `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali but not all Mali are works
 - `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only Ddraw, DX8 or DX9 games and OpenGL 3.1 below games are working
 - `LLVMPIPE` - Software renderer, not recommended for games. Use this if you want to run software apps, this feature are only available in winlator 7.1 releases or older
