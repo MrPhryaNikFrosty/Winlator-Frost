@@ -16,7 +16,7 @@ Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq
 
 # Winlator@Frost Installation
 
-1. Download and install the APK (Winlator@Frost 10.0Final V4.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
+1. Download and install the APK (Winlator@Frost 10.0Final V4.1.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
 2. Launch the app and wait for the installation process to finish
 3. Now you can enjoy your favorite pc games! But please make sure that you select the renderer based on your phone chips, you can read the system requirements below to learn more
 4. You can also try out our new winlator mod glibc (for now 7.1.3) from the releases
