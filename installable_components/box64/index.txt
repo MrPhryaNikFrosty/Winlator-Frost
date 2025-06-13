@@ -3,4 +3,4 @@ box64-0.2.8.tzst
 box64-0.2.9.tzst
 box64-0.3.1.tzst
 box64-0.3.6.tzst
-0.3.6 are in experimental, some games might broke (IGNORE THIS SELECTION)
+0.3.6 are in experimental, some games might broke IGNORE THIS SELECTION
