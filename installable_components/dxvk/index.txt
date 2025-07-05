@@ -26,3 +26,5 @@ dxvk-2.6.tzst
 dxvk-2.6.1.tzst
 dxvk-2.6.2.tzst
 dxvk-2.6.2.1.tzst
+dxvk-2.7.tzst
+dxvk-2.7.4.tzst
