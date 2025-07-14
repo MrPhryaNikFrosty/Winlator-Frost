@@ -14,7 +14,7 @@ Subscribe My YouTube Channel [Click Here](https://youtube.com/@winlatorfrostth?s
 
 Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq2)
 
-NEW! Our official Instagram account [Click here](​https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
+NEW! Our official Instagram account [Click here](https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
 
 NEW! Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
 
