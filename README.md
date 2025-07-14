@@ -12,7 +12,11 @@ Winlator@Frost is a simple modification of the original winlator by [Brunodev85]
 
 Subscribe My YouTube Channel [Click Here](https://youtube.com/@winlatorfrostth?si=h0hQv0bwE7hY4yKO)​
 
-Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq2)​
+Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq2)
+
+NEW! Our official Instagram account [Click here](​https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
+
+NEW! Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
 
 # Winlator@Frost Installation
 
