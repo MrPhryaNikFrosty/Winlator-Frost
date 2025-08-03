@@ -1,5 +1,5 @@
 <p align="center">
-	<img src="logo.jpg" width="376" height="128" alt="Winlator-Frost Logo" />  
+	<img src="logo.png" width="376" height="128" alt="Winlator-Frost Logo" />  
 </p>
 <a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&width=500&lines=Welcome+to+Winlator%40Frost+Official+Github!;If+you+like+the+mod%2C+please+star+the+repo!;Established+since+2023,+No.1+Winlator+mod;Modded+with+%E2%9D%A4%EF%B8%8F+by+Tanakorn+(aka+PhryaNik)" alt="Typing SVG" /></a>
 
