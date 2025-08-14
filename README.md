@@ -8,15 +8,15 @@
   <img src="https://img.shields.io/github/downloads/MrPhryaNikFrosty/Winlator-Frost/total" alt="Total Downloads" width="150">
 </p>
 
-Winlator@Frost is a simple modification of the original winlator by [Brunodev85](https://github.com/brunodev85/winlator), offering many additional contents such as Box64, DXVK and Turnip. It aims to run some Windows applications by using Wine and Box64 as environment or base to work
+Winlator@Frost is a simple and basic modification of the original winlator by [Brunodev85](https://github.com/brunodev85/winlator), offering many additional contents such as Box64, DXVK and Turnip. It aims to run some Windows applications by using Wine and Box64 as environment or base to work
 
 Subscribe My YouTube Channel [Click Here](https://youtube.com/@winlatorfrostth?si=h0hQv0bwE7hY4yKO)​
 
 Join us in our official Discord server [Click Here](https://discord.gg/Q74CNHJnq2)
 
-NEW! Our official Instagram account [Click here](https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
+Our official Instagram account [Click here](https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
 
-NEW! Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
+Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
 
 # Winlator@Frost Installation
 
@@ -61,6 +61,7 @@ For older version of winlator (legacy) you can run it using `3.3COMPAT` or `4.0`
 - You can now enable `MANGOHUD` for glibc version (7.1.3), not yet available for proot and winlator 10 version
 - For some unity games especially to fix unity games from crashing, try use stability preset and add `-force-gfx-direct -​force-d3d11-singlethread` in the exec arguments inside the shortcut of the unity games
 - For some unity games, the game have a problem to launch in proot, since the box64 are outdated in proot so please try in winlator glibc 7.1.3 or winlator 10 version
+- If the games need an Internet connection, it's recommended to install the wine gecko and mono
 
 #### To show the VKD3D fps hud, you can try to add this env into environment variables:
     VK_INSTANCE_LAYERS=VK_LAYER_MESA_overlay
@@ -128,5 +129,5 @@ This project has been in constant development since version 1.0, the current app
 - ([Ajay prefix](https://github.com/ajay9634/Ajay-prefix))​
 - Some advice and help by AI such as ChatGPT, Google Gemini and DeepSeek AI
 
-Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx) and others.<br>
-Thanks to all the people who have been contributed in this project that I couldn't mentioned it at here and also to those who believe and trusted this project from the beginning until today
+Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx), [antonocca](https://github.com/antonoca) and others.<br>
+Thanks to all the people who have been contributed in this project that I couldn't mentioned it at here and also to those who believe and trusted this project from the initial release until today
