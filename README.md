@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/github/downloads/MrPhryaNikFrosty/Winlator-Frost/total" alt="Total Downloads" width="150">
 </p>
 
-Winlator@Frost is a simple and basic modification of the original winlator by [Brunodev85](https://github.com/brunodev85/winlator), offering many additional contents such as Box64, DXVK and Turnip. It aims to run some Windows applications by using Wine and Box64 as environment or base to work
+Winlator@Frost is a simple and basic modification of the original winlator by [Brunodev85](https://github.com/brunodev85/winlator), offering many additional contents such as Box64, DXVK, Turnip and wide variety of box64 env to improve performance. It aims to run some Windows applications by using Wine and Box64 as the main core in order to work
 
 Subscribe My YouTube Channel [Click Here](https://youtube.com/@winlatorfrostth?si=h0hQv0bwE7hY4yKO)​
 
@@ -50,18 +50,18 @@ Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostof
 
 - If you are experiencing performance issues, try changing the preset for Box86/Box64 in Container Settings -> Advanced Tab.
 - For applications that use .NET Framework, try installing Wine Mono found in Start Menu -> System Tools.
-- If some older games don't open, try adding the environment variable MESA_EXTENSION_MAX_YEAR=2003 in Container Settings -> Environment Variables.
+- If some older games don't open, try adding the environment variable MESA_EXTENSION_MAX_YEAR=2003 in Container Settings -> Environment Variables. If it already exist, just change the year to 2003. But if you play a newer games especially unity or unreal engine games, you must change it to 2025
 - Try running the games using the shortcut on the Winlator home screen, there you can define individual settings for each game.
-- If you want to hide the annoying dxvk hud, please untick `devinfo`, `frametimes` and `gpuload` in the environment variables of the env `DXVK_HUD` inside the container settings. Or you can also delete the env `DXVK_HUD`
+- If you want to hide the annoying dxvk hud, please untick `devinfo`, `frametimes` and `gpuload` in the environment variables of the env `DXVK_HUD` inside the container settings. Or you can also remove the env `DXVK_HUD` in the environment variables
 - If you want to use VirGL in winlator version (7.1 and newer), make sure to change the env of `MESA_GL_VERSION_OVERRIDE`from `3.3COMPAT`to `2.1` or `3.1COMPAT`
-For older version of winlator (legacy) you can run it using `3.3COMPAT` or `4.0`
+For older version of winlator (legacy) you can run it using `3.3COMPAT` or `4.0`. For Winlator 9 and 10 you can change the GL version directly without the env in the VirGL settings inside of container settings
 - Enable the `BOX64_DYNAREC_WEAKBARRIER` by using 1 or 2 value can improve the performance for some 64 bit games (especially unity games)
 - To display low resolution games correctly, try to enabling the `Force Fullscreen` option in the shortcut settings
 - To speed up the installers, try changing the Box64 preset to `Intermediate` in Container Settings -> Advanced Tab
 - You can now enable `MANGOHUD` for glibc version (7.1.3), not yet available for proot and winlator 10 version
 - For some unity games especially to fix unity games from crashing, try use stability preset and add `-force-gfx-direct -​force-d3d11-singlethread` in the exec arguments inside the shortcut of the unity games
 - For some unity games, the game have a problem to launch in proot, since the box64 are outdated in proot so please try in winlator glibc 7.1.3 or winlator 10 version
-- If the games need an Internet connection, it's recommended to install the wine gecko and mono
+- If the games require an Internet connection, it's recommended to install the wine gecko and mono
 
 #### To show the VKD3D fps hud, you can try to add this env into environment variables:
     VK_INSTANCE_LAYERS=VK_LAYER_MESA_overlay
@@ -78,9 +78,9 @@ For older version of winlator (legacy) you can run it using `3.3COMPAT` or `4.0`
 
 ## Graphics Driver for device GPU
 - `Turnip` - Only for Snapdragon that has `Adreno 6xx and 7xx` only at the moment. `Adreno 8xx (8 elite, 8s gen 4, 7s gen 3, 6 gen 4) and old Adreno 5xx or below` are not working. You have to use VirGL or Vortek if you're using this type of GPU.
-- `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali GPUs but not all Mali GPUs are works
-- `VirGL` - Universal, all GPUs `like Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only Ddraw, DX8 or DX9 games and OpenGL 4.0 below games are working
-- `LLVMPIPE` - Software renderer, it very slow and have very worst performance. Not recommended it to play games as this renderer use CPU and not GPU, so only apps like browser, office or utility apps are working by using this renderer
+- `Vortek` - Universal, all GPUs will work especially for Adreno 8xx which doesn't support turnip can use this driver. This driver are also work in Mali GPUs but not all Mali GPUs are works. All DX8 and DX9 games doesn't have any problem with this renderer but there's some of DX10 and DX11 games are working and sadly DX12 games with vkd3d are not working
+- `VirGL` - Universal, all GPUs `such as Mali, PowerVR, Xclipse, etc and old Adreno 5xx and below or Adreno 8xx` might work with VirGL but only Ddraw, DX8 or DX9 games and OpenGL 4.0 below games are working
+- `LLVMPIPE` - Software renderer, work at almost all the type of chipset but it very slow and have very worst performance. Not recommended it to play games as this renderer use CPU and not GPU, so only apps like browser, office or utility apps are working by using this renderer. This driver are only available in the legacy version (winlator 5 and older)
 
 # Known issue in Winlator@Frost
 - ~~Snapdragon 8s gen 3 `Adreno​ 735` container not starting issue~~ (now it's working)
