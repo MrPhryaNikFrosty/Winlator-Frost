@@ -20,7 +20,7 @@ Our official TikTok account [Click here](https://www.tiktok.com/@winlatorfrostof
 
 # Winlator@Frost Installation
 
-1. Download and install the APK (Winlator@Frost 10.0Final V4.1.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
+1. Download and install the APK (Winlator@Frost 10.1 V1.apk) from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
 2. Launch the app and wait for the installation process to finish
 3. Now you can enjoy your favorite pc games! But please make sure that you select the renderer based on your phone chips, you can read the system requirements below to learn more
 4. You can also try out winlator mod glibc 7.1.3 version from the releases and tags
