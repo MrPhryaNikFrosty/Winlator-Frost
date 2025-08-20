@@ -26,7 +26,7 @@ Winlator@Frost is a simple and basic modification of the original winlator by [B
 
 [Winlator@Frost's official TikTok account, ran by Tanakorn](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
 
-[Winlator@Frost's official Telegram channel, ran by Jay](https://t.me/winfrost)
+[Winlator@Frost's official Telegram channel, ran by Jay and Tanakorn](https://t.me/winfrost)
 
 ----
 
