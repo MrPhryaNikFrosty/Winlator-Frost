@@ -20,11 +20,13 @@ Winlator@Frost is a simple and basic modification of the original winlator by [B
 
 [Winlator@Frost's Official YouTube channel, ran by Tanakorn](https://youtube.com/@winlatorfrostth?si=h0hQv0bwE7hY4yKO)​
 
-[The official Winlator@Frost Discord Server](https://discord.gg/Q74CNHJnq2)
+[The official Winlator@Frost Discord Server, ran by Tanakorn and Jay](https://discord.gg/Q74CNHJnq2)
 
 [Winlator@Frost's official Instagram account, ran by Tanakorn](https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
 
 [Winlator@Frost's official TikTok account, ran by Tanakorn](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
+
+[Winlator@Frost's official Telegram channel, ran by Jay](https://t.me/winfrost)
 
 ----
 
