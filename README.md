@@ -36,7 +36,7 @@ Winlator@Frost is a simple and basic modification of the original winlator by [B
 3. Now you can enjoy your favorite pc games! But please make sure that you select the renderer based on your phone chips, you can read the system requirements below to learn more.
 4. Star the repository!
 
-- You can also try out Winlator@Frkst GlibC 7.1.3 version from the releases and tags
+- You can also try out Winlator@Frost GlibC 7.1.3 version from the releases and tags
 - For older or legacy version of Winlator@Frost which are not available in Github releases can be able to access it at [here](https://mega.nz/folder/dQtDzI7a#47pl7EQ8AWwY2jV-665ikQ)
 
 # Testing Videos of Winlator@Frost.
