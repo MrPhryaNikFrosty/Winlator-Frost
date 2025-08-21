@@ -132,5 +132,5 @@ This project has been in constant development since version 1.0, the current app
 - ([Ajay prefix](https://github.com/ajay9634/Ajay-prefix))​
 - Some advice and help by AI such as ChatGPT, Google Gemini and DeepSeek AI
 
-Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx), [antonocca](https://github.com/antonoca) and others.<br>
+Many thanks to [ptitSeb](https://github.com/ptitSeb), [Danylo](https://blogs.igalia.com/dpiliaiev/tags/mesa/), [Max Ivan](https://github.com/Maxython), [Twaik Yont](https://github.com/twaik), [alexvorxx](https://github.com/alexvorxx), [Jay](https://github.com/jacojay) and others.<br>
 Thanks to all the people who have been contributed in this project that I couldn't mentioned it at here and also to those who believe and trusted this project from the initial release until today
