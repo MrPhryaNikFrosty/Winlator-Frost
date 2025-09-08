@@ -3,7 +3,7 @@
 
 <div align="center">
 
-[![Frost SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&center=true&vCenter=true&random=true&width=500&lines=Welcome+to+the+Winlator%40Frost+Github!;If+you+like+the+mod%2C+please+star+the+repo!;Established+since+2023,+No.1+Winlator+mod;Modded+with+%E2%9D%A4%EF%B8%8F+by+Tanakorn+and+Jay)](https://git.io/typing-svg)
+[![Frost SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&center=true&vCenter=true&random=true&width=500&lines=Welcome+to+the+Winlator%40Frost+Github!;If+you+like+the+mod%2C+please+star+the+repo!;Established+since+2023;In+the+leaderboard+of+best+winlator+mod!;Modded+with+%E2%9D%A4%EF%B8%8F+by+Tanakorn+and+Jay)](https://git.io/typing-svg)
 
 </div>
 <p align="center">
