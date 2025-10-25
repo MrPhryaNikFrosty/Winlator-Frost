@@ -11,27 +11,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
-          sudo apt-get clean
           sudo apt-get update
           sudo apt-get install -y \
-            python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
-            libx11-dev libx11-xcb-dev \
-            libxext-dev libxdamage-dev libxfixes-dev \
-            libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
+            build-essential git pkg-config python3 python3-mako python3-pip \
+            python3-setuptools python3-wheel meson ninja-build cmake \
+            clang llvm llvm-dev libclang-dev \
+            libx11-dev libx11-xcb-dev libxext-dev libxxf86vm-dev \
+            libxdamage-dev libxfixes-dev libxshmfence-dev \
+            libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-glx0-dev \
             libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
             libxcb-xfixes0-dev libxcb-shm0-dev \
-            libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
-            libegl1-mesa-dev libwayland-egl-backend-dev libdrm-dev \
-            llvm-dev libclang-dev clang pkg-config git glslang-tools \
-            libexpat1-dev cmake
-          python3 -m pip install --upgrade pip
+            libwayland-dev wayland-protocols libwayland-egl-backend-dev \
+            libegl1-mesa-dev libvulkan-dev \
+            libdrm-dev libexpat1-dev libudev-dev libomxil-bellagio-dev \
+            glslang-tools spirv-tools \
+            libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
+            zlib1g-dev libpng-dev libtinfo-dev libelf-dev
           pip install --upgrade meson==1.5.0 mako
 
       - name: Clone Mesa
@@ -51,7 +52,7 @@ jobs:
             96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
             echo "Applying patch $patch..."
             git fetch https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git $patch || true
-            git cherry-pick $patch || echo "Skipping patch $patch (already applied or incompatible)"
+            git cherry-pick $patch || echo "Skipping patch $patch (may already be applied)"
           done
 
       - name: Build Mesa Turnip
@@ -62,13 +63,13 @@ jobs:
             -Dvulkan-drivers=freedreno \
             -Dgallium-drivers=freedreno,softpipe,llvmpipe \
             -Dllvm=enabled \
-            -Dshared-llvm=true \
+            -Dshared-llvm=enabled \
             -Dplatforms=x11,wayland \
             -Dbuildtype=release
           ninja -C build
-
           mkdir -p ../artifacts
-          find build -name "*.so" -type f -exec cp {} ../artifacts/ \; || true
+          cp -r build/src/freedreno/vulkan/*.so ../artifacts/ || true
+          cp -r build/src/gallium/targets/*.so ../artifacts/ || true
 
       - name: Upload Compiled Drivers
         uses: actions/upload-artifact@v4
