@@ -4,17 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       mesa_version:
-        description: "Mesa version tag or branch (e.g. mesa-26.0.0, mesa-25.3.0, or main)"
-        required: true
-        default: "mesa-26.0.0"
+        description: "Mesa version tag or branch (e.g. mesa-26.0.1, mesa-25.2.5, or main)"
+        required: false
+        default: "main"
 
 jobs:
-  build-turnip:
+  build:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        winlator_version: [ "10.1", "11.0" ]
-    name: Build Turnip ${{ github.event.inputs.mesa_version }} for Winlator ${{ matrix.winlator_version }}
 
     steps:
       - name: Checkout repository
@@ -23,114 +19,50 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y python3-mako python3-pip ninja-build meson git llvm clang libexpat1-dev zip
-          pip3 install meson==1.4.0 mako jinja2
+          sudo apt install -y python3-mako python3-pip python3-setuptools meson ninja-build \
+            llvm clang bison flex libdrm-dev libwayland-dev libx11-dev libxext-dev \
+            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
+            libxcb-present-dev libxcb-sync-dev libxshmfence-dev libxxf86vm-dev \
+            libexpat1-dev zlib1g-dev libelf-dev git pkg-config
 
-      - name: Download Android NDK (r26d)
+      - name: Clone Mesa source
         run: |
-          wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip -O ndk.zip
-          unzip -q ndk.zip
-          mv android-ndk-r26d $HOME/android-ndk
-
-      - name: Clone Mesa source (${{ github.event.inputs.mesa_version }})
-        run: |
-          git clone --branch ${{ github.event.inputs.mesa_version }} --depth 1 https://gitlab.freedesktop.org/mesa/mesa.git || \
-          (echo "Branch or tag not found, trying as commit..." && git clone https://gitlab.freedesktop.org/mesa/mesa.git && cd mesa && git checkout ${{ github.event.inputs.mesa_version }})
+          git clone https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
+          git fetch --tags
+          if git rev-parse -q --verify "refs/tags/${{ github.event.inputs.mesa_version }}"; then
+            git checkout tags/${{ github.event.inputs.mesa_version }}
+          else
+            echo "⚠️ Tag not found. Falling back to main branch..."
+            git checkout main
+          fi
           git submodule update --init --recursive
 
-      - name: Configure build for Turnip
+      - name: Apply Winlator Turnip patches
         run: |
           cd mesa
-          mkdir build && cd build
+          git remote add pipetto https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git
+          git fetch pipetto
+          # Apply the three patches in order
+          git cherry-pick 9575886914d4a4ca09694c42e261f568ee8575d7 || true
+          git cherry-pick d264c66f9950cb2331c22c21172a07520fb38c68 || true
+          git cherry-pick 96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c || true
 
-          # Create Meson cross-file for Android ARM64
-          cat > cross_file.txt <<'EOF'
-          [binaries]
-          c = '/usr/bin/clang'
-          cpp = '/usr/bin/clang++'
-          ar = 'llvm-ar'
-          strip = 'llvm-strip'
-          pkgconfig = '/usr/bin/pkg-config'
-          [host_machine]
-          system = 'android'
-          cpu_family = 'aarch64'
-          cpu = 'armv8'
-          endian = 'little'
-          [paths]
-          prefix = '/usr/local'
-          [properties]
-          needs_exe_wrapper = true
-          EOF
-
-          # Configure differently for Winlator versions
-          if [ "${{ matrix.winlator_version }}" = "10.1" ]; then
-            meson setup . .. \
-              --cross-file cross_file.txt \
-              --buildtype=release \
-              -Dplatforms=android \
-              -Dgallium-drivers=freedreno \
-              -Dvulkan-drivers=freedreno \
-              -Dshared-glapi=true \
-              -Dllvm=true \
-              -Dandroid-stub=true \
-              -Dbuild-tests=false \
-              -Dgles1=disabled \
-              -Dgles2=enabled
-          else
-            meson setup . .. \
-              --cross-file cross_file.txt \
-              --buildtype=release \
-              -Dplatforms=android \
-              -Dgallium-drivers=freedreno \
-              -Dvulkan-drivers=freedreno \
-              -Dshared-glapi=true \
-              -Dllvm=true \
-              -Dandroid-stub=true \
-              -Dbuild-tests=false \
-              -Dgles1=disabled \
-              -Dgles2=enabled \
-              -Dspirv-to-nir=true \
-              -Dvalgrind=false
-          fi
-
-      - name: Build Turnip driver
+      - name: Build Mesa Turnip
         run: |
-          cd mesa/build
-          ninja -j$(nproc)
+          cd mesa
+          meson setup build/ \
+            --prefix=/usr \
+            -Dvulkan-drivers=freedreno \
+            -Dgallium-drivers=freedreno,swrast \
+            -Dllvm=enabled \
+            -Dshared-llvm=enabled \
+            -Dplatforms=x11,wayland,drm \
+            -Dbuildtype=release
+          ninja -C build
 
-      - name: Package Turnip libraries
-        run: |
-          cd mesa/build
-          mkdir -p ../../output/${{ matrix.winlator_version }}
-          find . -name "*.so" -exec cp {} ../../output/${{ matrix.winlator_version }}/ \;
-          cd ../../
-          cd output/${{ matrix.winlator_version }}
-
-          # Add Mesa version info
-          echo "Mesa Version: ${{ github.event.inputs.mesa_version }}" > MESA_VERSION.txt
-          git -C ../../mesa log -1 --pretty=format:"Commit: %H%nDate: %ad%nAuthor: %an%nSubject: %s" >> MESA_VERSION.txt
-
-          zip -r ../../turnip-${{ github.event.inputs.mesa_version }}-winlator-${{ matrix.winlator_version }}.zip .
-          cd ../../
-
-      - name: Upload artifacts
+      - name: Upload Turnip driver artifact
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-${{ github.event.inputs.mesa_version }}-winlator-${{ matrix.winlator_version }}
-          path: turnip-${{ github.event.inputs.mesa_version }}-winlator-${{ matrix.winlator_version }}.zip
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-22.04
-    needs: build-turnip
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*.zip
+          name: turnip-driver-${{ github.event.inputs.mesa_version }}
+          path: mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so
