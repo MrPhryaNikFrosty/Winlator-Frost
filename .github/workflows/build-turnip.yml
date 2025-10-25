@@ -11,18 +11,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
-          sudo apt-get update
+          sudo apt-get clean && sudo apt-get update
           sudo apt-get install -y python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev \
             libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
             libxcb-xfixes0-dev libxcb1-dev libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
             libexpat1-dev libdrm-dev llvm-dev libclang-dev clang pkg-config git
+          python3 -m pip install --upgrade pip
           pip install --upgrade meson==1.5.0 mako
 
       - name: Clone Mesa
@@ -42,7 +44,7 @@ jobs:
             96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
             echo "Applying patch $patch..."
             git fetch https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git $patch || true
-            git cherry-pick $patch || echo "Skipping patch $patch (may already be applied)"
+            git cherry-pick $patch || echo "Skipping patch $patch (already applied or not compatible)"
           done
 
       - name: Build Mesa Turnip
@@ -53,13 +55,14 @@ jobs:
             -Dvulkan-drivers=freedreno \
             -Dgallium-drivers=freedreno,softpipe,llvmpipe \
             -Dllvm=enabled \
-            -Dshared-llvm=enabled \
+            -Dshared-llvm=true \
             -Dplatforms=x11,wayland \
             -Dbuildtype=release
           ninja -C build
+
           mkdir -p ../artifacts
-          cp -r build/src/freedreno/vulkan/*.so ../artifacts/ || true
-          cp -r build/src/gallium/targets/*.so ../artifacts/ || true
+          # Collect possible output .so paths for Mesa 25.x–26.x+
+          find build -name "*.so" -type f -exec cp {} ../artifacts/ \; || true
 
       - name: Upload Compiled Drivers
         uses: actions/upload-artifact@v4
