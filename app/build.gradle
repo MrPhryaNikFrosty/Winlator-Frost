@@ -21,9 +21,9 @@ plugins {
 tasks.register("prepareKotlinBuildScriptModel"){}
 
 android {
-    namespace 'com.winlator.cmod'
+    namespace 'com.winlator'
 
-    compileSdk 34
+    compileSdk 30
 
     defaultConfig {
         applicationId "com.winlator"
@@ -43,7 +43,7 @@ android {
 
 
         ndk {
-            abiFilters 'arm64-v8a'
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
     }
 
@@ -58,13 +58,13 @@ android {
     // Keep Winlator’s buildTypes
     buildTypes {
         debug {
-            minifyEnabled false
+            minifyEnabled true
         }
         // If you have a release build type, add it here
     }
 
 
-    ndkVersion '27.0.12077973'
+    ndkVersion '22.1.7171670'
     externalNativeBuild {
         cmake {
             path 'src/main/cpp/CMakeLists.txt'
@@ -80,31 +80,12 @@ android {
 }
 
 dependencies {
-    // Winlator’s dependencies
-    implementation 'androidx.appcompat:appcompat:1.4.0'
-    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'androidx.preference:preference:1.1.1'
     implementation 'com.google.android.material:material:1.4.0'
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.tukaani:xz:1.7'
     implementation 'org.apache.commons:commons-compress:1.20'
-    implementation 'androidx.activity:activity-ktx:1.4.0'
-    implementation 'androidx.fragment:fragment-ktx:1.4.0'
-    implementation files('libs/MidiSynth/MidiSynth.jar')
-    implementation 'androidx.recyclerview:recyclerview:1.2.0'
-    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
-    implementation 'com.google.code.gson:gson:2.8.8'
-    implementation 'org.conscrypt:conscrypt-android:2.5.2'
-    implementation 'org.bouncycastle:bcprov-jdk15on:1.68'
-    implementation 'org.openjsse:openjsse:1.1.7'
-    implementation 'androidx.core:core:1.0.1'
-    implementation 'com.github.bumptech.glide:glide:4.11.0'
-    implementation 'com.kohlschutter.junixsocket:junixsocket-common:2.6.0'
-    implementation 'com.kohlschutter.junixsocket:junixsocket-native-common:2.6.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
-    implementation 'com.google.android.flexbox:flexbox:3.0.0'
-    implementation 'com.google.android.material:material:1.6.1'
 }
 
 
