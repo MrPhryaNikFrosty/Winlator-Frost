@@ -1,67 +1,48 @@
-name: Build Turnip (Mesa for Winlator)
+name: Build Turnip Driver
 
 on:
   workflow_dispatch:
     inputs:
       mesa_version:
-        description: "Mesa version tag or branch (e.g. mesa-26.0.1, mesa-25.2.5, or main)"
-        required: false
-        default: "main"
+        description: "Mesa version to build (tag or branch)"
+        required: true
+        default: "mesa-26.0.0"
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip python3-setuptools python3-mako ninja-build \
-            llvm clang bison flex libdrm-dev libwayland-dev libx11-dev libxext-dev \
-            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-            libxcb-present-dev libxcb-sync-dev libxshmfence-dev libxxf86vm-dev \
-            libexpat1-dev zlib1g-dev libelf-dev git pkg-config zip
+          sudo apt-get update
+          sudo apt-get install -y python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
+            libx11-dev libxext-dev libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libxcb1-dev libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
+            libexpat1-dev libdrm-dev llvm-dev libclang-dev clang pkg-config git
+          pip install --upgrade meson==1.5.0 mako
 
-          # Upgrade to the latest Meson (Mesa requires >=1.4.0)
-          sudo pip3 install --upgrade meson
-
-      - name: Verify Meson version
-        run: meson --version
-
-      - name: Clone Mesa source
+      - name: Clone Mesa
         run: |
           git clone https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
           git fetch --tags
-          if git rev-parse -q --verify "refs/tags/${{ github.event.inputs.mesa_version }}"; then
-            git checkout tags/${{ github.event.inputs.mesa_version }}
-          else
-            echo "⚠️ Tag not found. Falling back to main branch..."
-            git checkout main
-          fi
+          git checkout ${{ github.event.inputs.mesa_version }} || git checkout main
           git submodule update --init --recursive
 
-      - name: Apply Winlator Turnip patches
+      - name: Apply Turnip Patches (optional)
         run: |
           cd mesa
-          git remote add pipetto https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git
-          git fetch pipetto
-
-          echo "Applying Turnip patches..."
-          for commit in \
+          for patch in \
             9575886914d4a4ca09694c42e261f568ee8575d7 \
             d264c66f9950cb2331c22c21172a07520fb38c68 \
-            96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c
-          do
-            if git cherry-pick $commit; then
-              echo "✅ Applied patch $commit"
-            else
-              echo "⚠️ Failed to apply $commit, skipping..."
-              git cherry-pick --abort || true
-            fi
+            96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
+            echo "Applying patch $patch..."
+            git fetch https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git $patch || true
+            git cherry-pick $patch || echo "Skipping patch $patch (may already be applied)"
           done
 
       - name: Build Mesa Turnip
@@ -73,17 +54,15 @@ jobs:
             -Dgallium-drivers=freedreno,softpipe,llvmpipe \
             -Dllvm=enabled \
             -Dshared-llvm=enabled \
-            -Dplatforms=x11,wayland,drm \
+            -Dplatforms=x11,wayland \
             -Dbuildtype=release
           ninja -C build
+          mkdir -p ../artifacts
+          cp -r build/src/freedreno/vulkan/*.so ../artifacts/ || true
+          cp -r build/src/gallium/targets/*.so ../artifacts/ || true
 
-      - name: Package Turnip driver
-        run: |
-          cd mesa/build/src/freedreno/vulkan
-          zip -r9 ../../../turnip-driver.zip libvulkan_freedreno.so
-
-      - name: Upload Turnip driver artifact
+      - name: Upload Compiled Drivers
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-driver-${{ github.event.inputs.mesa_version }}
-          path: mesa/build/turnip-driver.zip
+          name: Mesa-${{ github.event.inputs.mesa_version }}-Turnip-Drivers
+          path: artifacts/
