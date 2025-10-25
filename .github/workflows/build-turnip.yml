@@ -18,13 +18,16 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get clean && sudo apt-get update
-          sudo apt-get install -y python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
-            libx11-dev libxext-dev libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev \
-            libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
-            libxcb-xfixes0-dev libxcb1-dev libxshmfence-dev libvulkan-dev libwayland-dev \
-            libwayland-egl1-mesa-dev libwayland-egl-backend-dev wayland-protocols \
-            libexpat1-dev libdrm-dev llvm-dev libclang-dev clang pkg-config git glslang-tools
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
+            libx11-dev libxext-dev libxdamage-dev libxfixes-dev libxcb-glx0-dev \
+            libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcb1-dev \
+            libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libwayland-egl-backend-dev libdrm-dev llvm-dev \
+            libclang-dev clang pkg-config git glslang-tools libexpat1-dev
           python3 -m pip install --upgrade pip
           pip install --upgrade meson==1.5.0 mako
 
