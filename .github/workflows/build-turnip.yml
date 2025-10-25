@@ -23,7 +23,7 @@ jobs:
             llvm clang bison flex libdrm-dev libwayland-dev libx11-dev libxext-dev \
             libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
             libxcb-present-dev libxcb-sync-dev libxshmfence-dev libxxf86vm-dev \
-            libexpat1-dev zlib1g-dev libelf-dev git pkg-config
+            libexpat1-dev zlib1g-dev libelf-dev git pkg-config zip
 
           # Upgrade to the latest Meson (Mesa requires >=1.4.0)
           sudo pip3 install --upgrade meson
@@ -70,15 +70,20 @@ jobs:
           meson setup build/ \
             --prefix=/usr \
             -Dvulkan-drivers=freedreno \
-            -Dgallium-drivers=freedreno,swrast \
+            -Dgallium-drivers=freedreno,softpipe,llvmpipe \
             -Dllvm=enabled \
             -Dshared-llvm=enabled \
             -Dplatforms=x11,wayland,drm \
             -Dbuildtype=release
           ninja -C build
 
+      - name: Package Turnip driver
+        run: |
+          cd mesa/build/src/freedreno/vulkan
+          zip -r9 ../../../turnip-driver.zip libvulkan_freedreno.so
+
       - name: Upload Turnip driver artifact
         uses: actions/upload-artifact@v4
         with:
           name: turnip-driver-${{ github.event.inputs.mesa_version }}
-          path: mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so
+          path: mesa/build/turnip-driver.zip
