@@ -24,10 +24,10 @@ jobs:
             python3-mako python3-pip ninja-build python3-setuptools python3-wheel \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev libxcb-glx0-dev \
             libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
-            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcb1-dev \
-            libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcb-shm0-dev \
+            libxcb1-dev libxshmfence-dev libvulkan-dev libwayland-dev wayland-protocols \
             libegl1-mesa-dev libwayland-egl-backend-dev libdrm-dev llvm-dev \
-            libclang-dev clang pkg-config git glslang-tools libexpat1-dev
+            libclang-dev clang pkg-config git glslang-tools libexpat1-dev cmake
           python3 -m pip install --upgrade pip
           pip install --upgrade meson==1.5.0 mako
 
