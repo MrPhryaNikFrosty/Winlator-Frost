@@ -1,78 +1,131 @@
-name: Build Turnip Driver
+name: Build Turnip Driver (AArch64 emulated)
 
 on:
   workflow_dispatch:
     inputs:
       mesa_version:
-        description: "Mesa version to build (tag or branch)"
+        description: "Mesa version to build (tag or branch), e.g. mesa-26.0.0 or mesa-25.3.0 or main"
         required: true
         default: "mesa-26.0.0"
 
 jobs:
-  build:
+  build-aarch64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Set up QEMU (for arm64 Docker emulation)
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: linux/arm64
+
+      - name: Checkout repository (workspace)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Install Dependencies
+      - name: Run ARM64 build inside Docker (Ubuntu 22.04)
+        # We run a large multi-line bash command inside the container.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git pkg-config python3 python3-mako python3-pip \
-            python3-setuptools python3-wheel meson ninja-build cmake \
-            clang llvm llvm-dev libclang-dev \
-            libx11-dev libx11-xcb-dev libxext-dev libxxf86vm-dev \
-            libxdamage-dev libxfixes-dev libxshmfence-dev \
-            libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-glx0-dev \
-            libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
-            libxcb-xfixes0-dev libxcb-shm0-dev \
-            libwayland-dev wayland-protocols libwayland-egl-backend-dev \
-            libegl1-mesa-dev libvulkan-dev \
-            libdrm-dev libexpat1-dev libudev-dev libomxil-bellagio-dev \
-            glslang-tools spirv-tools \
-            libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
-            zlib1g-dev libpng-dev libtinfo-dev libelf-dev
-          pip install --upgrade meson==1.5.0 mako
+          docker run --rm --platform=linux/arm64 \
+            -v "${{ github.workspace }}:/work" -w /work \
+            ubuntu:22.04 /bin/bash -lc '
+            set -xe
+            export DEBIAN_FRONTEND=noninteractive
 
-      - name: Clone Mesa
-        run: |
-          git clone https://gitlab.freedesktop.org/mesa/mesa.git
-          cd mesa
-          git fetch --tags
-          git checkout ${{ github.event.inputs.mesa_version }} || git checkout main
-          git submodule update --init --recursive
+            # Update & install dependencies (comprehensive list)
+            apt-get update
+            apt-get install -y --no-install-recommends \
+              build-essential git pkg-config ca-certificates software-properties-common \
+              python3 python3-pip python3-setuptools python3-wheel python3-mako \
+              meson ninja-build cmake \
+              clang llvm llvm-dev libclang-dev \
+              libx11-dev libx11-xcb-dev libxext-dev libxxf86vm-dev \
+              libxdamage-dev libxfixes-dev libxshmfence-dev \
+              libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-glx0-dev \
+              libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
+              libxcb-xfixes0-dev libxcb-shm0-dev \
+              libwayland-dev wayland-protocols libwayland-egl-backend-dev \
+              libegl1-mesa-dev libvulkan-dev \
+              libdrm-dev libexpat1-dev libudev-dev \
+              glslang-tools spirv-tools \
+              libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
+              zlib1g-dev libpng-dev libtinfo-dev libelf-dev cmake wget xz-utils bzip2
 
-      - name: Apply Turnip Patches (optional)
-        run: |
-          cd mesa
-          for patch in \
-            9575886914d4a4ca09694c42e261f568ee8575d7 \
-            d264c66f9950cb2331c22c21172a07520fb38c68 \
-            96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
-            echo "Applying patch $patch..."
-            git fetch https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git $patch || true
-            git cherry-pick $patch || echo "Skipping patch $patch (may already be applied)"
-          done
+            # Ensure Python pip, then install Meson (explicit)
+            python3 -m pip install --upgrade pip
+            python3 -m pip install --upgrade "meson==1.5.0" mako
 
-      - name: Build Mesa Turnip
-        run: |
-          cd mesa
-          meson setup build/ \
-            --prefix=/usr \
-            -Dvulkan-drivers=freedreno \
-            -Dgallium-drivers=freedreno,softpipe,llvmpipe \
-            -Dllvm=enabled \
-            -Dshared-llvm=enabled \
-            -Dplatforms=x11,wayland \
-            -Dbuildtype=release
-          ninja -C build
-          mkdir -p ../artifacts
-          cp -r build/src/freedreno/vulkan/*.so ../artifacts/ || true
-          cp -r build/src/gallium/targets/*.so ../artifacts/ || true
+            # Create build dir in workspace and clone Mesa (inside container)
+            cd /work
+            rm -rf mesa
+            git clone https://gitlab.freedesktop.org/mesa/mesa.git
+            cd mesa
+            git fetch --tags
 
-      - name: Upload Compiled Drivers
+            # If tag specified exists, check it out; otherwise checkout provided ref or main
+            if git rev-parse --verify --quiet "$MESA_VERSION" >/dev/null; then
+              git checkout "$MESA_VERSION"
+            elif git rev-parse --verify --quiet "refs/tags/$MESA_VERSION" >/dev/null; then
+              git checkout "refs/tags/$MESA_VERSION"
+            else
+              # fall back to tag name attempt, else main
+              git checkout "${MESA_VERSION:-main}" || git checkout main
+            fi
+            git submodule update --init --recursive
+
+            # Apply Winlator Turnip patches (Pipetto-crypto commits) if they apply
+            git remote add pipetto https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git || true
+            git fetch pipetto || true
+            for commit in \
+              9575886914d4a4ca09694c42e261f568ee8575d7 \
+              d264c66f9950cb2331c22c21172a07520fb38c68 \
+              96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
+              echo "Trying to apply patch $commit"
+              if git rev-parse --verify --quiet "$commit" >/dev/null; then
+                # commit exists locally (maybe already applied)
+                echo "commit $commit already present locally"
+              else
+                if git cherry-pick $commit; then
+                  echo "Applied patch $commit"
+                else
+                  echo "Could not apply $commit (skipping)"
+                  git cherry-pick --abort || true
+                fi
+              fi
+            done || true
+
+            # Configure Meson cross-file NOT needed because we are inside an arm64 container (native)
+            # Setup build directory and configure for freedreno Vulkan driver
+            meson setup build/ \
+              --prefix=/usr \
+              -Dvulkan-drivers=freedreno \
+              -Dgallium-drivers=freedreno,softpipe,llvmpipe \
+              -Dllvm=enabled \
+              -Dshared-llvm=true \
+              -Dplatforms=x11,wayland \
+              -Dbuildtype=release
+
+            # Build with ninja
+            ninja -C build -j$(nproc)
+
+            # Collect .so artifacts: Freedreno Vulkan ICD expected path varies by Mesa version; collect all .so
+            mkdir -p /work/artifacts
+            find build -name "*.so" -type f -exec cp -v {} /work/artifacts/ \\; || true
+
+            # Add metadata file (commit & date)
+            git -C . log -1 --pretty=format:"%H %ad %an %s" > /work/artifacts/MESA_build_info.txt || true
+
+            # Zip artifacts for upload
+            cd /work
+            rm -f turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}.zip
+            cd artifacts && zip -r9 ../turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}.zip . || true
+            echo "Build finished. Artifact: /work/turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}.zip"
+          '
+        env:
+          # Pass the mesa tag input into the container command as MESA_VERSION
+          MESA_VERSION: ${{ github.event.inputs.mesa_version }}
+
+      - name: Upload artifact (aarch64)
         uses: actions/upload-artifact@v4
         with:
-          name: Mesa-${{ github.event.inputs.mesa_version }}-Turnip-Drivers
-          path: artifacts/
+          name: turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}
+          path: turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}.zip
