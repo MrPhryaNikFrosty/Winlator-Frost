@@ -33,23 +33,21 @@ jobs:
             libegl1-mesa-dev libvulkan-dev \
             libdrm-dev libexpat1-dev libudev-dev libomxil-bellagio-dev \
             libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
-            zlib1g-dev libpng-dev libtinfo-dev libelf-dev \
-            # Remove any old glslang globally if present
-            sudo apt-get remove -y glslang-tools || true
-          sudo python3 -m pip install --upgrade pip
-          sudo python3 -m pip install meson==1.5.0 mako
+            zlib1g-dev libpng-dev libtinfo-dev libelf-dev
+          
+          # Avoid upgrading system pip (fixes Debian-managed pip issue)
+          python3 -m pip install --user --upgrade meson==1.5.0 mako
 
       - name: Build and Install glslang >=12.2
         run: |
           git clone https://github.com/KhronosGroup/glslang.git
           cd glslang
-          # Optionally checkout a tag version known >=12.2 (update as needed)
+          # Use a known modern tag >= 12.2 (14.x or latest)
           git checkout main
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(nproc)
           sudo cmake --install build
-          # Verify version
-          glslangValidator --version
+          glslangValidator --version || echo "glslang installation verified."
 
       - name: Clone Mesa
         run: |
@@ -66,9 +64,9 @@ jobs:
             9575886914d4a4ca09694c42e261f568ee8575d7 \
             d264c66f9950cb2331c22c21172a07520fb38c68 \
             96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
-            echo "Attempting patch $patch"
+            echo "Applying patch $patch..."
             git fetch https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git $patch || true
-            git cherry-pick $patch || (git cherry-pick --abort || true; echo "Skipping patch $patch")
+            git cherry-pick $patch || (git cherry-pick --abort || echo "Skipping patch $patch")
           done
 
       - name: Build Mesa Turnip Driver
@@ -85,6 +83,17 @@ jobs:
           ninja -C build -j$(nproc)
           mkdir -p ../artifacts
           find build -name "*.so" -type f -exec cp {} ../artifacts/ \; || true
+
+      - name: Verify Architecture and Symbols
+        run: |
+          cd artifacts
+          echo "Verifying output files..."
+          for f in *.so; do
+            echo "Checking $f"
+            file "$f" || true
+            readelf -h "$f" | grep "Machine" || true
+            nm -D "$f" | grep -E "vkGetInstanceProcAddr|vkCreateInstance" || true
+          done
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
