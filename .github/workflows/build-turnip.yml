@@ -15,14 +15,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3-mako python3-setuptools python3-pip python3-wheel ninja-build meson \
-            pkg-config bison flex libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+            python3-mako python3-setuptools python3-pip python3-wheel \
+            cmake cmake-data ninja-build pkg-config git build-essential \
+            bison flex libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
             libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
             libxcb-sync-dev libxcb-shm0-dev libxshmfence-dev libxxf86vm-dev \
             libwayland-dev wayland-protocols libexpat1-dev libdrm-dev \
             libelf-dev libunwind-dev libudev-dev libomxil-bellagio-dev \
-            llvm llvm-dev clang spirv-tools git cmake build-essential \
-            xz-utils wget
+            llvm llvm-dev clang spirv-tools \
+            libpthread-stubs0-dev libpython3-dev libstdc++-12-dev
 
       - name: Build Latest glslang (>=12.2)
         run: |
@@ -30,7 +31,7 @@ jobs:
           git clone https://github.com/KhronosGroup/glslang.git
           cd glslang
           git checkout main
-          cmake -S . -B build
+          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(nproc)
           sudo cmake --install build
           glslangValidator --version
@@ -39,7 +40,7 @@ jobs:
         run: |
           git clone https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
-          # Optionally checkout a specific commit or tag if needed
+          # Optional: checkout stable commit
           # git checkout main
 
       - name: Build Mesa Turnip Driver
