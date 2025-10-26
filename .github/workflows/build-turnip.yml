@@ -1,10 +1,10 @@
-name: Build Turnip Driver (AArch64 emulated, SPIRV/GLSLANG fixed)
+name: Build Turnip Driver (AArch64, all fixes applied)
 
 on:
   workflow_dispatch:
     inputs:
       mesa_version:
-        description: "Mesa version to build (tag or branch), e.g. mesa-26.0.0, mesa-25.3.0, or main"
+        description: "Mesa version to build (e.g. mesa-26.0.0 or main)"
         required: true
         default: "mesa-26.0.0"
 
@@ -12,17 +12,17 @@ jobs:
   build-aarch64:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU (enable arm64 Docker)
+      - name: Enable QEMU for arm64
         uses: docker/setup-qemu-action@v2
         with:
           platforms: linux/arm64
 
-      - name: Checkout workspace
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run ARM64 build inside Docker (Ubuntu 22.04)
+      - name: Build inside arm64 Ubuntu container
         env:
           MESA_VERSION: ${{ github.event.inputs.mesa_version }}
         run: |
@@ -30,10 +30,9 @@ jobs:
             -v "${{ github.workspace }}:/work" -w /work \
             ubuntu:22.04 /bin/bash -lc '
             set -ex
-
             export DEBIAN_FRONTEND=noninteractive
 
-            # Update and install CA packages + tools
+            # Update system and install all dependencies
             apt-get update
             apt-get install -y --no-install-recommends \
               build-essential git pkg-config ca-certificates wget xz-utils unzip \
@@ -49,44 +48,37 @@ jobs:
               libegl1-mesa-dev libvulkan-dev libdrm-dev libexpat1-dev libudev-dev \
               libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
               zlib1g-dev libpng-dev libtinfo-dev libelf-dev cmake ca-certificates \
-              glslang-tools spirv-tools
+              glslang-tools spirv-tools zip
 
-            # Make sure pip installs meson for the user (avoid overwriting system pip)
+            # Upgrade Meson & Mako via pip (user mode)
             python3 -m pip install --user --upgrade "meson==1.5.0" mako
-
-            # Put user pip bin into PATH for this script
             export PATH="$HOME/.local/bin:$PATH"
 
-            # Working directory: /work (repo workspace)
-            cd /work
-
-            # Build and install SPIRV-Headers and SPIRV-Tools (required by modern glslang)
-            rm -rf external_spirv && mkdir -p external_spirv && cd external_spirv
-
-            # SPIRV-Headers
+            # === Build SPIRV-Headers ===
+            rm -rf /work/external_spirv && mkdir -p /work/external_spirv && cd /work/external_spirv
             git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git
             cd SPIRV-Headers
-            mkdir -p build && cd build
+            mkdir build && cd build
             cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
             ninja -v
-            sudo ninja install
+            ninja install
             cd /work/external_spirv
 
-            # SPIRV-Tools (build with headers)
+            # === Build SPIRV-Tools ===
             git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Tools.git
             cd SPIRV-Tools
-            # ensure CMake finds headers in /usr
-            mkdir -p build && cd build
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV-Headers_SOURCE_DIR=/work/external_spirv/SPIRV-Headers -DCMAKE_INSTALL_PREFIX=/usr ..
+            mkdir build && cd build
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DSPIRV-Headers_SOURCE_DIR=/work/external_spirv/SPIRV-Headers \
+              -DCMAKE_INSTALL_PREFIX=/usr ..
             ninja -v
-            sudo ninja install
+            ninja install
             cd /work
 
-            # Build & install glslang (use external SPIRV-Tools)
+            # === Build glslang (with external SPIRV-Tools) ===
             rm -rf glslang && git clone --depth 1 https://github.com/KhronosGroup/glslang.git
             cd glslang
-            # Configure to use external SPIRV tools (ENABLE_OPT true, allow external)
-            mkdir -p build && cd build
+            mkdir build && cd build
             cmake -G Ninja \
               -DCMAKE_BUILD_TYPE=Release \
               -DENABLE_OPT=ON \
@@ -94,28 +86,26 @@ jobs:
               -DCMAKE_INSTALL_PREFIX=/usr \
               ..
             ninja -v
-            sudo ninja install
-            # verify
-            if command -v glslangValidator; then
-              echo "glslangValidator version:"
-              glslangValidator --version || true
-            fi
+            ninja install
 
-            # Back to workspace and clone Mesa
+            # Verify glslang version
+            glslangValidator --version || true
+
+            # === Build Mesa (Turnip) ===
             cd /work
             rm -rf mesa
             git clone https://gitlab.freedesktop.org/mesa/mesa.git
             cd mesa
             git fetch --tags
 
-            # Checkout requested mesa tag/ref or fallback to main
+            # Checkout desired Mesa version
             if [ -n "$MESA_VERSION" ]; then
-              if git rev-parse --verify --quiet "$MESA_VERSION" >/dev/null 2>&1; then
+              if git rev-parse --verify --quiet "$MESA_VERSION" >/dev/null; then
                 git checkout "$MESA_VERSION"
-              elif git rev-parse --verify --quiet "refs/tags/$MESA_VERSION" >/dev/null 2>&1; then
+              elif git rev-parse --verify --quiet "refs/tags/$MESA_VERSION" >/dev/null; then
                 git checkout "refs/tags/$MESA_VERSION"
               else
-                echo "Requested MESA_VERSION=$MESA_VERSION not found; falling back to main"
+                echo "Version $MESA_VERSION not found; using main"
                 git checkout main
               fi
             else
@@ -123,7 +113,7 @@ jobs:
             fi
             git submodule update --init --recursive
 
-            # Apply Winlator Turnip patches (from Pipetto-crypto) safely
+            # === Apply Pipetto patches ===
             git remote add pipetto https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git || true
             git fetch pipetto || true
             for commit in \
@@ -131,21 +121,15 @@ jobs:
               d264c66f9950cb2331c22c21172a07520fb38c68 \
               96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
               echo "Attempting to cherry-pick $commit"
-              if git rev-parse --verify --quiet $commit >/dev/null 2>&1; then
-                echo "Commit $commit already present locally"
+              if git cherry-pick $commit; then
+                echo "Applied $commit"
               else
-                if git cherry-pick $commit; then
-                  echo "Applied $commit"
-                else
-                  echo "Skipping $commit (conflict or not applicable)"
-                  git cherry-pick --abort || true
-                fi
+                git cherry-pick --abort || true
               fi
             done || true
 
-            # Configure & build Mesa (Turnip/ freedreno)
-            # Note: this runs natively inside arm64 container so no cross-file needed
-            meson setup build/ \
+            # === Configure and build Mesa Turnip ===
+            meson setup build \
               --prefix=/usr \
               -Dvulkan-drivers=freedreno \
               -Dgallium-drivers=freedreno,softpipe,llvmpipe \
@@ -155,22 +139,17 @@ jobs:
               -Dbuildtype=release
             ninja -C build -j$(nproc)
 
-            # Collect artifacts
+            # === Collect artifacts ===
             mkdir -p /work/artifacts
-            find build -name "*.so" -type f -exec cp -v {} /work/artifacts/ \\; || true
+            find build -name "*.so" -type f -exec cp -v {} /work/artifacts/ \;
+            git log -1 --pretty=format:"%H %ad %an %s" > /work/artifacts/MESA_build_info.txt
 
-            # Save mesa commit info
-            git log -1 --pretty=format:"%H %ad %an %s" > /work/artifacts/MESA_build_info.txt || true
-
-            # Zip artifacts
-            cd /work
-            rm -f turnip-driver-aarch64-${MESA_VERSION:-main}.zip || true
-            cd artifacts
-            zip -r9 ../turnip-driver-aarch64-${MESA_VERSION:-main}.zip . || true
-            echo "Build finished, produced turnip-driver-aarch64-${MESA_VERSION:-main}.zip"
+            cd /work/artifacts
+            zip -r9 /work/turnip-driver-aarch64-${MESA_VERSION:-main}.zip . || true
+            echo "✅ Build completed successfully"
           '
 
-      - name: Upload artifact (aarch64)
+      - name: Upload Turnip build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}
