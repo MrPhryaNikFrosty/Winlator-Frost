@@ -1,206 +1,79 @@
-name: Build Turnip Driver (AArch64, Winlator-compatible)
+name: Build Turnip for ARM64 (Winlator-Compatible)
 
 on:
   workflow_dispatch:
-    inputs:
-      mesa_version:
-        description: "Mesa tag/branch (default is mesa-25.1.0 to match K11MCH1 era)"
-        required: true
-        default: "mesa-25.1.0"
 
 jobs:
-  build-aarch64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enable QEMU for arm64
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: linux/arm64
+  build-turnip:
+    runs-on: ubuntu-22.04
 
-      - name: Checkout repository (workspace)
+    steps:
+      - name: Checkout Mesa Source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          repository: mesa3d/mesa
+          ref: main
 
-      - name: Run ARM64 build inside Docker (Ubuntu 22.04)
-        env:
-          MESA_VERSION: ${{ github.event.inputs.mesa_version }}
+      - name: Install Base Dependencies
         run: |
-          docker run --rm --platform=linux/arm64 \
-            -v "${{ github.workspace }}:/work" -w /work \
-            ubuntu:22.04 /bin/bash -lc '
-            set -ex
-            export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3 python3-pip python3-mako python3-setuptools \
+            git ninja-build meson cmake pkg-config bison flex \
+            libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+            libexpat-dev libdrm-dev libelf-dev libomxil-bellagio-dev \
+            zlib1g-dev libclc-dev llvm clang libwayland-dev wayland-protocols \
+            libxrandr-dev libxrender-dev libx11-xcb-dev libxcb-dri2-0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev \
+            libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
+            byacc python3-packaging
 
-            # ---- Install system deps (comprehensive A→Z list) ----
-            apt-get update
-            apt-get install -y --no-install-recommends \
-              build-essential git pkg-config ca-certificates wget xz-utils unzip zip \
-              python3 python3-pip python3-setuptools python3-wheel python3-mako \
-              cmake ninja-build meson \
-              clang llvm llvm-dev libclang-dev \
-              # X11 + XCB + X extensions
-              libx11-dev libx11-xcb-dev libxext-dev libxxf86vm-dev \
-              libxdamage-dev libxfixes-dev libxshmfence-dev \
-              libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-              libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev \
-              libxcb-shape0-dev libxcb-xfixes0-dev libxcb-shm0-dev \
-              # Wayland packages (we install but we'll NOT enable wayland in mesa)
-              libwayland-dev wayland-protocols libwayland-egl-backend-dev \
-              # EGL/Vulkan/DRM/other
-              libegl1-mesa-dev libvulkan-dev libdrm-dev libexpat1-dev libudev-dev \
-              libunwind-dev libpthread-stubs0-dev libselinux-dev libxrandr-dev \
-              zlib1g-dev libpng-dev libtinfo-dev libelf-dev cmake ca-certificates \
-              # SPIR-V/glslang helpers
-              glslang-tools spirv-tools \
-              # parser generators & helpers
-              flex bison byacc \
-              # patching tool
-              patchelf
+      - name: Prepare SPIRV-Tools
+        run: |
+          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
+          cd SPIRV-Tools
+          python3 utils/git-sync-deps
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON ..
+          make -j$(nproc)
+          sudo make install
 
-            # Ensure python user bin is in PATH for meson installed via pip
-            python3 -m pip install --user --upgrade "meson==1.5.0" mako
-            export PATH="$HOME/.local/bin:$PATH"
+      - name: Prepare glslang
+        run: |
+          git clone --depth=1 https://github.com/KhronosGroup/glslang.git
+          cd glslang
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=ON ..
+          make -j$(nproc)
+          sudo make install
 
-            # ---- Build & install SPIR-V Headers & Tools ----
-            rm -rf /work/external_spirv && mkdir -p /work/external_spirv && cd /work/external_spirv
+      - name: Run ARM64 Mesa Build inside Docker
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v ${{ github.workspace }}:/work \
+            ubuntu:22.04 \
+            bash -c "
+              apt-get update && apt-get install -y \
+                python3 python3-pip python3-mako meson ninja-build cmake pkg-config \
+                git llvm clang zlib1g-dev libdrm-dev byacc flex bison \
+                libexpat1-dev libwayland-dev wayland-protocols \
+                libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+                libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
+                libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev && \
+              cd /work && \
+              meson setup build/ \
+                --prefix=/work/install \
+                --libdir=lib \
+                -Dplatforms=x11,wayland \
+                -Dvulkan-drivers=freedreno \
+                -Dgallium-drivers=freedreno \
+                -Dbuildtype=release && \
+              ninja -C build && \
+              ninja -C build install
+            "
 
-            git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git
-            cd SPIRV-Headers
-            mkdir build && cd build
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-            ninja -v
-            ninja install
-            cd /work/external_spirv
-
-            git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Tools.git
-            cd SPIRV-Tools
-            mkdir build && cd build
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-              -DSPIRV-Headers_SOURCE_DIR=/work/external_spirv/SPIRV-Headers \
-              -DCMAKE_INSTALL_PREFIX=/usr ..
-            ninja -v
-            ninja install
-            cd /work
-
-            # ---- Build & install glslang (use external SPIRV tools) ----
-            rm -rf glslang && git clone --depth 1 https://github.com/KhronosGroup/glslang.git
-            cd glslang
-            mkdir build && cd build
-            cmake -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DENABLE_OPT=ON \
-              -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
-              -DCMAKE_INSTALL_PREFIX=/usr \
-              ..
-            ninja -v
-            ninja install
-            glslangValidator --version || true
-            cd /work
-
-            # ---- Clone Mesa and checkout requested version (or main) ----
-            rm -rf mesa
-            git clone https://gitlab.freedesktop.org/mesa/mesa.git
-            cd mesa
-            git fetch --tags
-
-            if [ -n "$MESA_VERSION" ]; then
-              # try tag or branch; fallback to main
-              if git rev-parse --verify --quiet "$MESA_VERSION" >/dev/null 2>&1; then
-                git checkout "$MESA_VERSION"
-              elif git rev-parse --verify --quiet "refs/tags/$MESA_VERSION" >/dev/null 2>&1; then
-                git checkout "refs/tags/$MESA_VERSION"
-              else
-                echo "MESA_VERSION $MESA_VERSION not found; falling back to main"
-                git checkout main
-              fi
-            else
-              git checkout main
-            fi
-            git submodule update --init --recursive
-
-            # ---- Apply Pipetto-crypto Turnip patches (if applicable) ----
-            git remote add pipetto https://gitlab.freedesktop.org/Pipetto-crypto/mesa.git || true
-            git fetch pipetto || true
-            for commit in \
-              9575886914d4a4ca09694c42e261f568ee8575d7 \
-              d264c66f9950cb2331c22c21172a07520fb38c68 \
-              96c4cb07b2a52124021c807f2c1ad4ab1f1cbf9c; do
-              echo "Trying to apply $commit"
-              if git rev-parse --verify --quiet $commit >/dev/null 2>&1; then
-                echo "commit present locally; skipping cherry-pick"
-              else
-                if git cherry-pick $commit; then
-                  echo "Applied $commit"
-                else
-                  echo "Skipping $commit (conflict or already applied)"
-                  git cherry-pick --abort || true
-                fi
-              fi
-            done || true
-
-            # ---- Meson configure: IMPORTANT: disable Wayland, use only X11 ----
-            # This prevents linking to libwayland-client and libudev (which Winlator may not provide)
-            meson setup build \
-              --prefix=/usr \
-              -Dvulkan-drivers=freedreno \
-              -Dgallium-drivers=freedreno \
-              -Dllvm=enabled \
-              -Dshared-llvm=true \
-              -Dplatforms=x11 \
-              -Dbuildtype=release \
-              -Dbuild-tests=false
-
-            # ---- Build ----
-            ninja -C build -j$(nproc)
-
-            # ---- Locate the main freedreno Vulkan ICD .so (paths differ by Mesa version) ----
-            mkdir -p /work/artifacts
-            # Prefer common location; fallback to any .so found
-            candidates=(
-              build/src/freedreno/vulkan/libvulkan_freedreno.so
-              build/src/vulkan/drivers/freedreno/libvulkan_freedreno.so
-              build/src/freedreno/libvulkan_freedreno.so
-            )
-            found=""
-            for p in "${candidates[@]}"; do
-              if [ -f "$p" ]; then found="$p"; break; fi
-            done
-            if [ -z "$found" ]; then
-              found=$(find build -name "libvulkan_freedreno.so" -print -quit || true)
-            fi
-            if [ -z "$found" ]; then
-              echo "ERROR: could not find libvulkan_freedreno.so (build layout may differ)"
-              exit 2
-            fi
-            cp -v "$found" /work/artifacts/
-
-            # ---- Strip and set runpath to match K11MCH1 style ----
-            # Strip to match the smaller fingerprint and to avoid extra debug symbols.
-            strip --strip-unneeded /work/artifacts/libvulkan_freedreno.so || true
-            # Set RUNPATH like the working K11 binary (helps runtime lookup in some environments)
-            if command -v patchelf >/dev/null 2>&1; then
-              patchelf --set-rpath /usr/local/lib/aarch64-linux-gnu /work/artifacts/libvulkan_freedreno.so || true
-            fi
-
-            # ---- Verification: check arch & exported ICD symbols ----
-            echo "ELF info for built driver:"
-            file /work/artifacts/libvulkan_freedreno.so || true
-            readelf -h /work/artifacts/libvulkan_freedreno.so || true
-            readelf -d /work/artifacts/libvulkan_freedreno.so || true
-            nm -D --defined-only /work/artifacts/libvulkan_freedreno.so | egrep "vk_icdGetInstanceProcAddr|vk_icdNegotiateLoaderICDInterfaceVersion|vkGetInstanceProcAddr" || true
-
-            # ---- Save build metadata ----
-            git -C /work/mesa log -1 --pretty=format:"%H %ad %an %s" > /work/artifacts/MESA_build_info.txt || true
-
-            # ---- Zip artifacts ----
-            cd /work/artifacts
-            zip -r9 /work/turnip-driver-aarch64-${MESA_VERSION:-main}.zip . || true
-            echo "Build finished: /work/turnip-driver-aarch64-${MESA_VERSION:-main}.zip"
-          '
-
-      - name: Upload artifact (aarch64)
+      - name: Upload Turnip Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}
-          path: turnip-driver-aarch64-${{ github.event.inputs.mesa_version }}.zip
+          name: turnip-arm64
+          path: install/lib/libvulkan_freedreno.so
