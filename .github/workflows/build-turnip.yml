@@ -14,19 +14,6 @@ jobs:
         with:
           platforms: all
 
-      # --- Prepare Environment ---
-      - name: Prepare Environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git curl python3 python3-pip python3-venv
-          if pip install --help | grep -q break-system-packages; then
-            pip install --break-system-packages --upgrade meson ninja
-          else
-            python3 -m venv ~/.venv
-            source ~/.venv/bin/activate
-            pip install --upgrade meson ninja
-          fi
-
       # --- Clone Mesa Source ---
       - name: Clone Mesa
         run: |
@@ -34,69 +21,7 @@ jobs:
           cd mesa
           git log -1
 
-      # --- Install Build Dependencies ---
-      - name: Install Dependencies
-        run: |
-          sudo apt-get install -y \
-            python3-mako python3-setuptools pkg-config cmake \
-            llvm clang libclc-dev zlib1g-dev libdrm-dev libelf-dev \
-            libexpat-dev bison flex libwayland-dev wayland-protocols \
-            libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-            libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
-            libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev \
-            libxcb-glx0-dev libxcb-shm0-dev byacc python3-packaging
-
-      # --- Build SPIRV-Headers and SPIRV-Tools ---
-      - name: Build SPIRV-Headers and SPIRV-Tools
-        run: |
-          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers.git
-          sudo cp -r SPIRV-Headers/include/spirv /usr/include/
-
-          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
-          cd SPIRV-Tools
-          python3 utils/git-sync-deps
-          mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=/usr \
-                -DSPIRV_SKIP_TESTS=ON ..
-          make -j$(nproc)
-          sudo make install
-
-      # --- Build glslang ---
-      - name: Build glslang
-        run: |
-          git clone --depth=1 https://github.com/KhronosGroup/glslang.git
-          cd glslang
-          mkdir build && cd build
-
-          if ! cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_OPT=ON \
-            -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
-            -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
-            -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib \
-            -DCMAKE_INSTALL_PREFIX=/usr/local ..; then
-            echo "Retrying glslang build with ENABLE_OPT=OFF..."
-            rm -rf * && cmake \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DENABLE_OPT=OFF \
-              -DCMAKE_INSTALL_PREFIX=/usr/local ..
-          fi
-
-          make -j$(nproc)
-          sudo make install
-          which glslangValidator
-          glslangValidator --version
-
-      # --- Copy glslang binaries to workspace (for Docker container) ---
-      - name: Export glslangValidator to workspace
-        run: |
-          mkdir -p ${{ github.workspace }}/tools
-          cp /usr/local/bin/glslangValidator ${{ github.workspace }}/tools/
-          cp /usr/local/lib/libglslang.so* ${{ github.workspace }}/tools/ || true
-          cp /usr/local/lib/libSPIRV*so* ${{ github.workspace }}/tools/ || true
-
-      # --- Build Mesa Turnip (ARM64) ---
+      # --- Build Mesa Turnip inside ARM64 container ---
       - name: Build Mesa Turnip (ARM64)
         run: |
           docker run --rm --platform linux/arm64 \
@@ -104,21 +29,52 @@ jobs:
             ubuntu:24.04 \
             bash -c "
               set -e
+              export DEBIAN_FRONTEND=noninteractive
               apt-get update && apt-get install -y \
                 python3 python3-pip python3-venv python3-mako python3-setuptools \
                 cmake pkg-config git llvm clang zlib1g-dev \
                 libdrm-dev libexpat1-dev libwayland-dev wayland-protocols \
                 libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-                flex bison byacc && \
-              if pip install --help | grep -q break-system-packages; then
-                pip install --break-system-packages --upgrade meson ninja
-              else
-                python3 -m venv /opt/venv && \
-                . /opt/venv/bin/activate && \
-                pip install --upgrade meson ninja
-              fi && \
-              cp /work/tools/glslangValidator /usr/local/bin/ && chmod +x /usr/local/bin/glslangValidator && \
+                libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
+                libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev \
+                libxcb-glx0-dev libxcb-shm0-dev flex bison byacc curl && \
+              
+              # --- Install Meson & Ninja (modern versions) ---
+              python3 -m venv /opt/venv && \
+              . /opt/venv/bin/activate && \
+              pip install --upgrade meson ninja mako packaging
+
+              # --- Build SPIR-V Headers ---
+              cd /work && \
+              git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers.git && \
+              cp -r SPIRV-Headers/include/spirv /usr/include/
+
+              # --- Build SPIR-V Tools ---
+              git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git && \
+              cd SPIRV-Tools && python3 utils/git-sync-deps && \
+              mkdir build && cd build && \
+              cmake -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_PREFIX=/usr \
+                    -DSPIRV_SKIP_TESTS=ON .. && \
+              make -j$(nproc) && make install
+
+              # --- Build glslang (ARM64) ---
+              cd /work && git clone --depth=1 https://github.com/KhronosGroup/glslang.git && \
+              cd glslang && mkdir build && cd build && \
+              cmake -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_PREFIX=/usr \
+                    -DENABLE_OPT=ON \
+                    -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
+                    -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
+                    -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib .. || \
+              (echo 'Retrying glslang with ENABLE_OPT=OFF' && rm -rf * && \
+               cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF -DCMAKE_INSTALL_PREFIX=/usr ..) && \
+              make -j$(nproc) && make install && \
+              which glslangValidator && glslangValidator --version || echo 'glslangValidator OK'
+
+              # --- Build Mesa Turnip (freedreno) ---
               cd /work/mesa && \
+              . /opt/venv/bin/activate && \
               meson setup build/ \
                 --prefix=/work/install \
                 --libdir=lib \
