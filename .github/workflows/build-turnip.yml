@@ -8,6 +8,12 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # --- Enable cross-architecture builds (QEMU) ---
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
       # --- Prepare basic tools ---
       - name: Prepare Environment
         run: |
@@ -21,7 +27,7 @@ jobs:
           cd mesa
           git log -1
 
-      # --- Install All Build Dependencies ---
+      # --- Install Build Dependencies ---
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -52,7 +58,7 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      # --- Build glslang (robust version) ---
+      # --- Build glslang with robust SPIRV detection ---
       - name: Build glslang (robust)
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
@@ -105,7 +111,7 @@ jobs:
               ninja -C build install
             "
 
-      # --- Upload Compiled Turnip ---
+      # --- Upload the compiled Turnip Vulkan Driver ---
       - name: Upload Turnip Vulkan Driver
         uses: actions/upload-artifact@v4
         with:
