@@ -8,26 +8,26 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # --- Setup basic tools ---
-      - name: Prepare Workspace
+      # --- Prepare basic tools ---
+      - name: Prepare Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl
+          sudo apt-get install -y git curl ca-certificates
 
       # --- Clone Mesa ---
-      - name: Clone Mesa from GitLab
+      - name: Clone Mesa Source
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
           git log -1
 
-      # --- Install dependencies for Mesa, glslang, SPIRV ---
-      - name: Install Build Dependencies
+      # --- Install All Build Dependencies ---
+      - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             python3 python3-pip python3-mako python3-setuptools \
-            ninja-build meson cmake pkg-config bison flex git \
+            meson ninja-build cmake pkg-config bison flex git \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
             libexpat-dev libdrm-dev libelf-dev zlib1g-dev \
             llvm clang libwayland-dev wayland-protocols \
@@ -36,33 +36,49 @@ jobs:
             libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
             libclc-dev byacc python3-packaging
 
-      # --- Build SPIRV-Tools ---
-      - name: Build SPIRV-Tools
+      # --- Build SPIRV-Headers and SPIRV-Tools ---
+      - name: Build SPIRV-Headers and SPIRV-Tools
         run: |
+          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers.git
+          sudo cp -r SPIRV-Headers/include/spirv /usr/include/
+
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
           cd SPIRV-Tools
           python3 utils/git-sync-deps
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON -DCMAKE_INSTALL_PREFIX=/usr ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr \
+                -DSPIRV_SKIP_TESTS=ON ..
           make -j$(nproc)
           sudo make install
 
-      # --- Build glslang (with SPIRV path fix) ---
-      - name: Build glslang
+      # --- Build glslang (robust version) ---
+      - name: Build glslang (robust)
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
-          cmake \
+
+          # Try with SPIRV optimization enabled
+          if ! cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_OPT=ON \
-            -DSPIRV_TOOLS_INSTALL_DIR=/usr \
-            -DCMAKE_INSTALL_PREFIX=/usr ..
+            -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
+            -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
+            -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib \
+            -DCMAKE_INSTALL_PREFIX=/usr ..; then
+            echo "SPIRV-Tools not found properly, retrying with ENABLE_OPT=OFF..."
+            rm -rf * && cmake \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DENABLE_OPT=OFF \
+              -DCMAKE_INSTALL_PREFIX=/usr ..
+          fi
+
           make -j$(nproc)
           sudo make install
 
-      # --- Build Mesa inside ARM64 container ---
-      - name: Build Mesa (Turnip) for ARM64 inside Docker
+      # --- Build Mesa (Turnip) for ARM64 in Docker ---
+      - name: Build Mesa Turnip (ARM64)
         run: |
           docker run --rm --platform linux/arm64 \
             -v ${{ github.workspace }}:/work \
@@ -89,9 +105,9 @@ jobs:
               ninja -C build install
             "
 
-      # --- Upload artifact for Winlator ---
-      - name: Upload Turnip Driver Artifact
+      # --- Upload Compiled Turnip ---
+      - name: Upload Turnip Vulkan Driver
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-arm64-driver
+          name: Mesa-Turnip-ARM64
           path: install/lib/libvulkan_freedreno.so
