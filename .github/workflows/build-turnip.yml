@@ -1,4 +1,4 @@
-name: Build Turnip for ARM64 (Winlator-Compatible)
+name: Build Turnip Vulkan Driver for ARM64 (Winlator-Compatible)
 
 on:
   workflow_dispatch:
@@ -8,27 +8,32 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout Mesa Source
-        uses: actions/checkout@v4
-        with:
-          repository: mesa3d/mesa
-          ref: main
-
-      - name: Install Base Dependencies
+      - name: Prepare Workspace
         run: |
           sudo apt-get update
+          sudo apt-get install -y git curl
+
+      - name: Clone Mesa from GitLab
+        run: |
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+          cd mesa
+          git log -1
+
+      - name: Install Base Build Dependencies
+        run: |
           sudo apt-get install -y \
             python3 python3-pip python3-mako python3-setuptools \
-            git ninja-build meson cmake pkg-config bison flex \
+            ninja-build meson cmake pkg-config bison flex git \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-            libexpat-dev libdrm-dev libelf-dev libomxil-bellagio-dev \
-            zlib1g-dev libclc-dev llvm clang libwayland-dev wayland-protocols \
-            libxrandr-dev libxrender-dev libx11-xcb-dev libxcb-dri2-0-dev \
-            libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev \
-            libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
-            byacc python3-packaging
+            libexpat-dev libdrm-dev libelf-dev zlib1g-dev \
+            llvm clang libwayland-dev wayland-protocols \
+            libxrandr-dev libxrender-dev libx11-xcb-dev \
+            libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
+            libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
+            libclc-dev byacc python3-packaging
 
-      - name: Prepare SPIRV-Tools
+      # ---- SPIRV Tools ----
+      - name: Build SPIRV-Tools
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
           cd SPIRV-Tools
@@ -38,7 +43,8 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Prepare glslang
+      # ---- glslang ----
+      - name: Build glslang
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
@@ -47,20 +53,23 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Run ARM64 Mesa Build inside Docker
+      # ---- ARM64 Mesa Build ----
+      - name: Build Mesa (Turnip) for ARM64 inside Docker
         run: |
           docker run --rm --platform linux/arm64 \
             -v ${{ github.workspace }}:/work \
             ubuntu:22.04 \
             bash -c "
+              set -e
               apt-get update && apt-get install -y \
-                python3 python3-pip python3-mako meson ninja-build cmake pkg-config \
-                git llvm clang zlib1g-dev libdrm-dev byacc flex bison \
-                libexpat1-dev libwayland-dev wayland-protocols \
-                libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-                libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
-                libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev && \
-              cd /work && \
+                python3 python3-pip python3-mako python3-setuptools \
+                meson ninja-build cmake pkg-config git llvm clang \
+                zlib1g-dev libdrm-dev libexpat1-dev byacc flex bison \
+                libwayland-dev wayland-protocols libx11-dev libxext-dev \
+                libxdamage-dev libxfixes-dev libxcb-dri2-0-dev \
+                libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev \
+                libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev && \
+              cd /work/mesa && \
               meson setup build/ \
                 --prefix=/work/install \
                 --libdir=lib \
@@ -72,8 +81,8 @@ jobs:
               ninja -C build install
             "
 
-      - name: Upload Turnip Artifacts
+      - name: Upload Turnip Driver Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-arm64
+          name: turnip-arm64-driver
           path: install/lib/libvulkan_freedreno.so
