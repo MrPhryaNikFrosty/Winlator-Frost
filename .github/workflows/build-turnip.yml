@@ -18,8 +18,8 @@ jobs:
       - name: Prepare Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl python3 python3-pip
-          pip install --upgrade meson ninja
+          sudo apt-get install -y git curl python3 python3-pip python3-venv
+          pip install --break-system-packages --upgrade meson ninja
 
       # --- Clone Mesa ---
       - name: Clone Mesa Source
@@ -57,14 +57,14 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      # --- Build glslang with robust SPIR-V detection ---
+      # --- Build glslang (robust) ---
       - name: Build glslang (robust)
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
 
-          # Try with SPIRV optimization enabled, else retry without
+          # Try with SPIR-V optimization enabled, else retry without
           if ! cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_OPT=ON \
@@ -91,12 +91,12 @@ jobs:
             bash -c "
               set -e
               apt-get update && apt-get install -y \
-                python3 python3-pip python3-mako python3-setuptools \
+                python3 python3-pip python3-venv python3-mako python3-setuptools \
                 cmake pkg-config git llvm clang zlib1g-dev \
                 libdrm-dev libexpat1-dev libwayland-dev wayland-protocols \
                 libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
                 flex bison byacc && \
-              pip install --upgrade meson ninja && \
+              pip install --break-system-packages --upgrade meson ninja && \
               cd /work/mesa && \
               meson setup build/ \
                 --prefix=/work/install \
