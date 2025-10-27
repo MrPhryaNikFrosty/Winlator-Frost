@@ -8,17 +8,18 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # --- Enable cross-architecture builds (QEMU) ---
-      - name: Set up QEMU for ARM64 emulation
+      # --- Enable QEMU emulation for ARM64 ---
+      - name: Set up QEMU for ARM64
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
-      # --- Prepare basic tools ---
+      # --- Prepare environment ---
       - name: Prepare Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl ca-certificates
+          sudo apt-get install -y git curl python3 python3-pip
+          pip install --upgrade meson ninja
 
       # --- Clone Mesa ---
       - name: Clone Mesa Source
@@ -32,15 +33,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3 python3-pip python3-mako python3-setuptools \
-            meson ninja-build cmake pkg-config bison flex git \
+            python3-mako python3-setuptools pkg-config cmake \
+            llvm clang libclc-dev zlib1g-dev libdrm-dev libelf-dev \
+            libexpat-dev bison flex libwayland-dev wayland-protocols \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-            libexpat-dev libdrm-dev libelf-dev zlib1g-dev \
-            llvm clang libwayland-dev wayland-protocols \
-            libxrandr-dev libxrender-dev libx11-xcb-dev \
             libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
-            libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
-            libclc-dev byacc python3-packaging
+            libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev \
+            libxcb-glx0-dev libxcb-shm0-dev byacc python3-packaging
 
       # --- Build SPIRV-Headers and SPIRV-Tools ---
       - name: Build SPIRV-Headers and SPIRV-Tools
@@ -58,14 +57,14 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      # --- Build glslang with robust SPIRV detection ---
+      # --- Build glslang with robust SPIR-V detection ---
       - name: Build glslang (robust)
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
 
-          # Try with SPIRV optimization enabled
+          # Try with SPIRV optimization enabled, else retry without
           if ! cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_OPT=ON \
@@ -73,7 +72,7 @@ jobs:
             -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
             -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib \
             -DCMAKE_INSTALL_PREFIX=/usr ..; then
-            echo "SPIRV-Tools not found properly, retrying with ENABLE_OPT=OFF..."
+            echo "SPIR-V tools not found properly, retrying with ENABLE_OPT=OFF..."
             rm -rf * && cmake \
               -DCMAKE_BUILD_TYPE=Release \
               -DENABLE_OPT=OFF \
@@ -83,22 +82,21 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      # --- Build Mesa (Turnip) for ARM64 in Docker ---
+      # --- Build Mesa Turnip for ARM64 inside Docker ---
       - name: Build Mesa Turnip (ARM64)
         run: |
           docker run --rm --platform linux/arm64 \
             -v ${{ github.workspace }}:/work \
-            ubuntu:22.04 \
+            ubuntu:24.04 \
             bash -c "
               set -e
               apt-get update && apt-get install -y \
                 python3 python3-pip python3-mako python3-setuptools \
-                meson ninja-build cmake pkg-config git llvm clang \
-                zlib1g-dev libdrm-dev libexpat1-dev byacc flex bison \
-                libwayland-dev wayland-protocols libx11-dev libxext-dev \
-                libxdamage-dev libxfixes-dev libxcb-dri2-0-dev \
-                libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev \
-                libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev && \
+                cmake pkg-config git llvm clang zlib1g-dev \
+                libdrm-dev libexpat1-dev libwayland-dev wayland-protocols \
+                libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+                flex bison byacc && \
+              pip install --upgrade meson ninja && \
               cd /work/mesa && \
               meson setup build/ \
                 --prefix=/work/install \
@@ -111,7 +109,7 @@ jobs:
               ninja -C build install
             "
 
-      # --- Upload the compiled Turnip Vulkan Driver ---
+      # --- Upload Compiled Turnip Vulkan Driver ---
       - name: Upload Turnip Vulkan Driver
         uses: actions/upload-artifact@v4
         with:
