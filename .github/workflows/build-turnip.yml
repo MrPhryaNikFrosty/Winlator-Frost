@@ -8,19 +8,23 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # --- Setup basic tools ---
       - name: Prepare Workspace
         run: |
           sudo apt-get update
           sudo apt-get install -y git curl
 
+      # --- Clone Mesa ---
       - name: Clone Mesa from GitLab
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
           git log -1
 
-      - name: Install Base Build Dependencies
+      # --- Install dependencies for Mesa, glslang, SPIRV ---
+      - name: Install Build Dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y \
             python3 python3-pip python3-mako python3-setuptools \
             ninja-build meson cmake pkg-config bison flex git \
@@ -32,28 +36,32 @@ jobs:
             libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-glx0-dev \
             libclc-dev byacc python3-packaging
 
-      # ---- SPIRV Tools ----
+      # --- Build SPIRV-Tools ---
       - name: Build SPIRV-Tools
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
           cd SPIRV-Tools
           python3 utils/git-sync-deps
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON -DCMAKE_INSTALL_PREFIX=/usr ..
           make -j$(nproc)
           sudo make install
 
-      # ---- glslang ----
+      # --- Build glslang (with SPIRV path fix) ---
       - name: Build glslang
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=ON ..
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_OPT=ON \
+            -DSPIRV_TOOLS_INSTALL_DIR=/usr \
+            -DCMAKE_INSTALL_PREFIX=/usr ..
           make -j$(nproc)
           sudo make install
 
-      # ---- ARM64 Mesa Build ----
+      # --- Build Mesa inside ARM64 container ---
       - name: Build Mesa (Turnip) for ARM64 inside Docker
         run: |
           docker run --rm --platform linux/arm64 \
@@ -81,6 +89,7 @@ jobs:
               ninja -C build install
             "
 
+      # --- Upload artifact for Winlator ---
       - name: Upload Turnip Driver Artifact
         uses: actions/upload-artifact@v4
         with:
