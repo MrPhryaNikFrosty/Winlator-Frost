@@ -14,12 +14,20 @@ jobs:
         with:
           platforms: all
 
-      # --- Prepare environment ---
+      # --- Prepare Environment ---
       - name: Prepare Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y git curl python3 python3-pip python3-venv
-          pip install --break-system-packages --upgrade meson ninja
+          # Check if pip supports --break-system-packages
+          if pip install --help | grep -q break-system-packages; then
+            pip install --break-system-packages --upgrade meson ninja
+          else
+            # Use virtualenv fallback for older pip versions
+            python3 -m venv ~/.venv
+            source ~/.venv/bin/activate
+            pip install --upgrade meson ninja
+          fi
 
       # --- Clone Mesa ---
       - name: Clone Mesa Source
@@ -96,7 +104,13 @@ jobs:
                 libdrm-dev libexpat1-dev libwayland-dev wayland-protocols \
                 libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
                 flex bison byacc && \
-              pip install --break-system-packages --upgrade meson ninja && \
+              if pip install --help | grep -q break-system-packages; then
+                pip install --break-system-packages --upgrade meson ninja
+              else
+                python3 -m venv /opt/venv && \
+                . /opt/venv/bin/activate && \
+                pip install --upgrade meson ninja
+              fi && \
               cd /work/mesa && \
               meson setup build/ \
                 --prefix=/work/install \
