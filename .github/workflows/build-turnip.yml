@@ -19,18 +19,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git curl python3 python3-pip python3-venv
-          # Check if pip supports --break-system-packages
           if pip install --help | grep -q break-system-packages; then
             pip install --break-system-packages --upgrade meson ninja
           else
-            # Use virtualenv fallback for older pip versions
             python3 -m venv ~/.venv
             source ~/.venv/bin/activate
             pip install --upgrade meson ninja
           fi
 
-      # --- Clone Mesa ---
-      - name: Clone Mesa Source
+      # --- Clone Mesa Source ---
+      - name: Clone Mesa
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
@@ -39,7 +37,6 @@ jobs:
       # --- Install Build Dependencies ---
       - name: Install Dependencies
         run: |
-          sudo apt-get update
           sudo apt-get install -y \
             python3-mako python3-setuptools pkg-config cmake \
             llvm clang libclc-dev zlib1g-dev libdrm-dev libelf-dev \
@@ -65,32 +62,41 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      # --- Build glslang (robust) ---
-      - name: Build glslang (robust)
+      # --- Build glslang ---
+      - name: Build glslang
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
 
-          # Try with SPIR-V optimization enabled, else retry without
           if ! cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_OPT=ON \
             -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
             -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
             -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib \
-            -DCMAKE_INSTALL_PREFIX=/usr ..; then
-            echo "SPIR-V tools not found properly, retrying with ENABLE_OPT=OFF..."
+            -DCMAKE_INSTALL_PREFIX=/usr/local ..; then
+            echo "Retrying glslang build with ENABLE_OPT=OFF..."
             rm -rf * && cmake \
               -DCMAKE_BUILD_TYPE=Release \
               -DENABLE_OPT=OFF \
-              -DCMAKE_INSTALL_PREFIX=/usr ..
+              -DCMAKE_INSTALL_PREFIX=/usr/local ..
           fi
 
           make -j$(nproc)
           sudo make install
+          which glslangValidator
+          glslangValidator --version
 
-      # --- Build Mesa Turnip for ARM64 inside Docker ---
+      # --- Copy glslang binaries to workspace (for Docker container) ---
+      - name: Export glslangValidator to workspace
+        run: |
+          mkdir -p ${{ github.workspace }}/tools
+          cp /usr/local/bin/glslangValidator ${{ github.workspace }}/tools/
+          cp /usr/local/lib/libglslang.so* ${{ github.workspace }}/tools/ || true
+          cp /usr/local/lib/libSPIRV*so* ${{ github.workspace }}/tools/ || true
+
+      # --- Build Mesa Turnip (ARM64) ---
       - name: Build Mesa Turnip (ARM64)
         run: |
           docker run --rm --platform linux/arm64 \
@@ -111,6 +117,7 @@ jobs:
                 . /opt/venv/bin/activate && \
                 pip install --upgrade meson ninja
               fi && \
+              cp /work/tools/glslangValidator /usr/local/bin/ && chmod +x /usr/local/bin/glslangValidator && \
               cd /work/mesa && \
               meson setup build/ \
                 --prefix=/work/install \
@@ -119,8 +126,7 @@ jobs:
                 -Dvulkan-drivers=freedreno \
                 -Dgallium-drivers=freedreno \
                 -Dbuildtype=release && \
-              ninja -C build && \
-              ninja -C build install
+              ninja -C build && ninja -C build install
             "
 
       # --- Upload Compiled Turnip Vulkan Driver ---
