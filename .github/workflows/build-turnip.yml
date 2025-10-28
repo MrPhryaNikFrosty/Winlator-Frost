@@ -31,7 +31,7 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
               apt-get update && apt-get install -y \
-                python3 python3-pip python3-venv python3-mako python3-setuptools \
+                python3 python3-pip python3-venv python3-mako python3-setuptools python3-wheel python3-yaml \
                 cmake pkg-config git llvm clang zlib1g-dev \
                 libdrm-dev libexpat1-dev libwayland-dev wayland-protocols \
                 libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
@@ -42,7 +42,7 @@ jobs:
               # --- Install Meson & Ninja (modern versions) ---
               python3 -m venv /opt/venv && \
               . /opt/venv/bin/activate && \
-              pip install --upgrade meson ninja mako packaging
+              pip install --upgrade meson ninja mako packaging pyyaml
 
               # --- Build SPIR-V Headers ---
               cd /work && \
