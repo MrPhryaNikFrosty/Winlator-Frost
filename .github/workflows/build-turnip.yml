@@ -9,13 +9,13 @@ jobs:
 
     steps:
       # -------------------------
-      # 1. Checkout Repository
+      # 1. Checkout Repo
       # -------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # -------------------------
-      # 2. Prepare Environment (Host)
+      # 2. Prepare Host Environment
       # -------------------------
       - name: Prepare Environment (Host)
         run: |
@@ -25,110 +25,92 @@ jobs:
             git wget curl ca-certificates software-properties-common \
             python3 python3-pip python3-venv python3-yaml pkg-config \
             cmake ninja-build build-essential clang llvm \
-            meson libwayland-dev wayland-protocols wayland-scanner++ \
+            meson qemu-user-static binfmt-support \
+            crossbuild-essential-arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libwayland-dev wayland-protocols wayland-scanner++ \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
             libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
             libxcb-sync-dev libxshmfence-dev libxxf86vm-dev libvulkan-dev \
             libdrm-dev libexpat1-dev libelf-dev bison flex zlib1g-dev \
-            spirv-tools && \
+            spirv-tools
           python3 -m pip install --no-cache-dir meson mako pyyaml
 
       # -------------------------
-      # 3. Clone Mesa (if not exists)
+      # 3. Clone Mesa
       # -------------------------
       - name: Clone Mesa source
         run: |
           set -e
           if [ ! -d "${{ github.workspace }}/mesa" ]; then
-            echo "Mesa source not found. Cloning now..."
             git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git ${{ github.workspace }}/mesa
           else
-            echo "Mesa source found. Updating..."
             cd ${{ github.workspace }}/mesa
             git fetch origin main || true
           fi
-          ls -la ${{ github.workspace }}/mesa
 
       # -------------------------
-      # 4. Build Mesa Turnip (ARM64)
+      # 4. Build glslang from source
+      # -------------------------
+      - name: Build glslang (for SPIR-V tools)
+        run: |
+          set -e
+          cd ${{ github.workspace }}
+          if [ ! -d glslang ]; then
+            git clone --depth=1 https://github.com/KhronosGroup/glslang.git
+          fi
+          cd glslang
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF .
+          ninja
+          sudo cp StandAlone/glslangValidator /usr/local/bin/
+
+      # -------------------------
+      # 5. Build Mesa Turnip (ARM64)
       # -------------------------
       - name: Build Mesa Turnip (ARM64)
         run: |
           set -e
+          cd ${{ github.workspace }}/mesa
 
-          # Ensure Mesa directory exists before running Docker
-          if [ ! -d "${{ github.workspace }}/mesa" ]; then
-            echo "Mesa directory missing, re-cloning..."
-            git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git ${{ github.workspace }}/mesa
-          fi
+          # Ensure glslangValidator exists
+          which glslangValidator || (echo "glslangValidator missing!" && exit 1)
 
-          # Run Docker build environment
-          docker run --rm --platform linux/arm64 \
-            -v ${{ github.workspace }}:/work \
-            ubuntu:24.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              
-              echo '🔧 Updating container packages...'
-              apt-get update -y && apt-get install -y --no-install-recommends \
-                git wget curl ca-certificates software-properties-common \
-                python3 python3-pip python3-venv python3-yaml pkg-config \
-                cmake ninja-build build-essential clang llvm \
-                meson libwayland-dev wayland-protocols wayland-scanner++ \
-                libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-                libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
-                libxcb-sync-dev libxshmfence-dev libxxf86vm-dev libvulkan-dev \
-                libdrm-dev libexpat1-dev libelf-dev bison flex zlib1g-dev \
-                spirv-tools
+          echo "🧩 Creating ARM64 cross file..."
+          cat > cross_file.txt <<'EOF'
+          [binaries]
+          c = 'aarch64-linux-gnu-gcc'
+          cpp = 'aarch64-linux-gnu-g++'
+          ar = 'aarch64-linux-gnu-ar'
+          strip = 'aarch64-linux-gnu-strip'
+          pkgconfig = 'pkg-config'
+          exe_wrapper = 'qemu-aarch64-static'
 
-              echo '🐍 Installing Python modules...'
-              python3 -m venv /opt/venv
-              . /opt/venv/bin/activate
-              pip install --no-cache-dir meson mako pyyaml
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'armv8'
+          endian = 'little'
+          EOF
 
-              echo '✅ Checking for Mesa directory...'
-              if [ ! -d /work/mesa ]; then
-                echo 'Error: Mesa source missing inside container!'
-                ls -la /work
-                exit 1
-              fi
-
-              cd /work/mesa
-              echo '📦 Cloning and building glslang...'
-              git clone --depth=1 https://github.com/KhronosGroup/glslang.git /work/glslang
-              cd /work/glslang
-              cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF .
-              ninja
-              cp /work/glslang/StandAlone/glslangValidator /usr/local/bin/
-
-              echo '🚀 Building Mesa (Turnip driver)...'
-              cd /work/mesa
-              mkdir -p build && cd build
-              meson setup --cross-file ../cross_file.txt \
-                -Dplatforms=x11,wayland \
-                -Ddri-drivers=[] \
-                -Dvulkan-drivers=freedreno \
-                -Dgallium-drivers= \
-                -Dbuildtype=release \
-                -Doptimization=3 \
-                -Dglx=disabled \
-                -Degl=disabled \
-                -Dshared-glapi=disabled \
-                -Dgles1=disabled \
-                -Dgles2=disabled \
-                -Dopengl=false \
-                -Dllvm=disabled \
-                -Dshared-llvm=disabled \
-                -Dprefix=/usr/local \
-                ..
-              ninja install
-
-              echo '✅ Mesa Turnip build completed successfully.'
-            "
+          mkdir -p build && cd build
+          meson setup --cross-file ../cross_file.txt \
+            -Dplatforms=x11,wayland \
+            -Dvulkan-drivers=freedreno \
+            -Dgallium-drivers=[] \
+            -Dbuildtype=release \
+            -Doptimization=3 \
+            -Dglx=disabled \
+            -Degl=disabled \
+            -Dshared-glapi=disabled \
+            -Dgles1=disabled \
+            -Dgles2=disabled \
+            -Dopengl=false \
+            -Dllvm=disabled \
+            -Dprefix=/usr/local \
+            ..
+          ninja install
 
       # -------------------------
-      # 5. Upload Built Libraries
+      # 6. Upload Compiled Artifacts
       # -------------------------
       - name: Upload Mesa artifacts
         uses: actions/upload-artifact@v4
