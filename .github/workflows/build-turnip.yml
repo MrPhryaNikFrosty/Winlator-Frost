@@ -8,15 +8,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # 1. Checkout Repo
-      # -------------------------
+      # ----------------------------------------
+      # 1. Checkout repository
+      # ----------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------------
-      # 2. Prepare Host Environment
-      # -------------------------
+      # ----------------------------------------
+      # 2. Prepare Environment
+      # ----------------------------------------
       - name: Prepare Environment (Host)
         run: |
           set -e
@@ -25,7 +25,7 @@ jobs:
             git wget curl ca-certificates software-properties-common \
             python3 python3-pip python3-venv python3-yaml pkg-config \
             cmake ninja-build build-essential clang llvm \
-            meson qemu-user-static binfmt-support \
+            qemu-user-static binfmt-support \
             crossbuild-essential-arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             libwayland-dev wayland-protocols wayland-scanner++ \
             libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
@@ -33,11 +33,21 @@ jobs:
             libxcb-sync-dev libxshmfence-dev libxxf86vm-dev libvulkan-dev \
             libdrm-dev libexpat1-dev libelf-dev bison flex zlib1g-dev \
             spirv-tools
-          python3 -m pip install --no-cache-dir meson mako pyyaml
 
-      # -------------------------
-      # 3. Clone Mesa
-      # -------------------------
+          # Upgrade pip and install latest Meson, Mako, PyYAML in user env
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --user --upgrade meson mako pyyaml
+
+          # Make sure Python user binaries are preferred
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
+
+          echo "✅ Environment ready"
+          meson --version
+
+      # ----------------------------------------
+      # 3. Clone Mesa source
+      # ----------------------------------------
       - name: Clone Mesa source
         run: |
           set -e
@@ -48,10 +58,10 @@ jobs:
             git fetch origin main || true
           fi
 
-      # -------------------------
-      # 4. Build glslang from source
-      # -------------------------
-      - name: Build glslang (for SPIR-V tools)
+      # ----------------------------------------
+      # 4. Build glslang (for SPIR-V tools)
+      # ----------------------------------------
+      - name: Build glslang (for SPIR-V)
         run: |
           set -e
           cd ${{ github.workspace }}
@@ -62,17 +72,22 @@ jobs:
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF .
           ninja
           sudo cp StandAlone/glslangValidator /usr/local/bin/
+          glslangValidator --version || true
 
-      # -------------------------
+      # ----------------------------------------
       # 5. Build Mesa Turnip (ARM64)
-      # -------------------------
+      # ----------------------------------------
       - name: Build Mesa Turnip (ARM64)
         run: |
           set -e
           cd ${{ github.workspace }}/mesa
 
+          # Ensure Meson version is correct
+          echo "Meson version check:"
+          meson --version
+
           # Ensure glslangValidator exists
-          which glslangValidator || (echo "glslangValidator missing!" && exit 1)
+          which glslangValidator || (echo "❌ glslangValidator missing!" && exit 1)
 
           echo "🧩 Creating ARM64 cross file..."
           cat > cross_file.txt <<'EOF'
@@ -92,6 +107,7 @@ jobs:
           EOF
 
           mkdir -p build && cd build
+
           meson setup --cross-file ../cross_file.txt \
             -Dplatforms=x11,wayland \
             -Dvulkan-drivers=freedreno \
@@ -107,13 +123,15 @@ jobs:
             -Dllvm=disabled \
             -Dprefix=/usr/local \
             ..
+          
           ninja install
 
-      # -------------------------
-      # 6. Upload Compiled Artifacts
-      # -------------------------
-      - name: Upload Mesa artifacts
+      # ----------------------------------------
+      # 6. Upload Result
+      # ----------------------------------------
+      - name: Upload libvulkan_freedreno.so
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-arm64
-          path: ${{ github.workspace }}/mesa/build
+          name: libvulkan_freedreno-arm64
+          path: |
+            ${{ github.workspace }}/mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so
