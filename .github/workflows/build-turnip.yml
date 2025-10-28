@@ -4,94 +4,83 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-turnip:
-    runs-on: ubuntu-22.04
+  build:
+    name: Build Mesa Turnip (AArch64)
+    runs-on: ubuntu-24.04
 
     steps:
-      # Enable QEMU for ARM64 emulation
-      - name: Set up QEMU for ARM64
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Prepare host environment
-      - name: Prepare Environment (Host)
+      - name: Install system dependencies
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
-            git curl ca-certificates python3 python3-pip python3-venv \
-            build-essential binutils make perl flex bison byacc \
-            pkg-config cmake ninja-build python3-mako python3-setuptools python3-wheel python3-pyyaml \
-            glslang-tools libclc-dev llvm clang libclang-dev
+            build-essential python3 python3-pip python3-setuptools python3-mako python3-jinja2 \
+            ninja-build git wget unzip pkg-config bison flex cmake meson \
+            libdrm-dev:arm64 libwayland-dev:arm64 wayland-protocols libxkbcommon-dev:arm64 \
+            libxcb1-dev:arm64 libxcb-dri3-dev:arm64 libxcb-present-dev:arm64 libxcb-sync-dev:arm64 \
+            libx11-dev:arm64 libxext-dev:arm64 libxdamage-dev:arm64 libxfixes-dev:arm64 libexpat1-dev:arm64 \
+            libudev-dev:arm64 libvulkan-dev:arm64 libelf-dev:arm64 zlib1g-dev:arm64 \
+            crossbuild-essential-arm64
 
-      # Clone Mesa source
-      - name: Clone Mesa Source
+      - name: Upgrade Meson to latest (>=1.4.0)
+        run: |
+          pip install --upgrade meson mako jinja2
+
+      - name: Clone Mesa repository
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
-          cd mesa && git log -1
+          cd mesa
+          git submodule update --init --recursive
 
-      # Build inside ARM64 container with full dependencies
-      - name: Build Mesa Turnip (ARM64)
+      - name: Create cross-compilation file for ARM64
         run: |
-          docker run --rm --platform linux/arm64 \
-            -v ${{ github.workspace }}:/work \
-            ubuntu:24.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update && apt-get install -y \
-                build-essential binutils make perl git curl \
-                python3 python3-pip python3-venv python3-mako python3-setuptools python3-wheel python3-pyyaml \
-                pkg-config cmake ninja-build flex bison byacc \
-                llvm clang libclang-dev libclc-dev \
-                zlib1g-dev libdrm-dev libelf-dev libexpat1-dev libunwind-dev \
-                libwayland-dev wayland-protocols libwayland-egl-backend-dev \
-                libx11-dev libx11-xcb-dev libxext-dev libxdamage-dev libxfixes-dev \
-                libxxf86vm-dev libxshmfence-dev \
-                libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-                libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-shm0-dev && \
-              python3 -m venv /opt/venv && \
-              . /opt/venv/bin/activate && \
-              pip install --upgrade meson ninja mako packaging pyyaml && \
-              cd /work && \
-              git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers.git && \
-              cp -r SPIRV-Headers/include/spirv /usr/include/ && \
-              git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git && \
-                cd SPIRV-Tools && python3 utils/git-sync-deps && \
-                mkdir build && cd build && \
-                cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
-                      -DSPIRV_SKIP_TESTS=ON .. && \
-                make -j$(nproc) && make install && \
-              cd /work && \
-              git clone --depth=1 https://github.com/KhronosGroup/glslang.git && \
-                cd glslang && mkdir build && cd build && \
-                cmake -DCMAKE_BUILD_TYPE=Release \
-                      -DCMAKE_INSTALL_PREFIX=/usr \
-                      -DENABLE_OPT=ON \
-                      -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
-                      -DSPIRV_TOOLS_INCLUDE_DIR=/usr/include/spirv-tools \
-                      -DSPIRV_TOOLS_LIBRARY_DIR=/usr/lib .. || \
-                  (echo 'Retrying glslang with ENABLE_OPT=OFF' && rm -rf * && \
-                   cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF -DCMAKE_INSTALL_PREFIX=/usr ..) && \
-                make -j$(nproc) && make install && \
-                which glslangValidator && glslangValidator --version || true && \
-              cd /work/mesa && \
-              . /opt/venv/bin/activate && \
-              meson setup build/ \
-                --prefix=/work/install \
-                --libdir=lib \
-                -Dplatforms=x11,wayland \
-                -Dvulkan-drivers=freedreno \
-                -Dgallium-drivers=freedreno \
-                -Dllvm=enabled \
-                -Dshared-llvm=true \
-                -Dbuildtype=release && \
-              ninja -C build && ninja -C build install
-            "
+          cd mesa
+          cat > cross_file.txt <<'EOF'
+          [binaries]
+          c = '/usr/bin/aarch64-linux-gnu-gcc'
+          cpp = '/usr/bin/aarch64-linux-gnu-g++'
+          ar = '/usr/bin/aarch64-linux-gnu-ar'
+          strip = '/usr/bin/aarch64-linux-gnu-strip'
+          pkgconfig = 'pkg-config'
+          exe_wrapper = 'qemu-aarch64-static'
 
-      # Upload resulting driver
-      - name: Upload Turnip Vulkan Driver
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+          EOF
+
+      - name: Configure Turnip build with Meson
+        run: |
+          cd mesa
+          meson setup build \
+            --cross-file cross_file.txt \
+            -Dvulkan-drivers=freedreno \
+            -Dplatforms=x11,wayland \
+            -Dbuildtype=release \
+            -Dprefix=/usr/local \
+            -Dstrip=true \
+            -Dgallium-drivers= \
+            -Dllvm=false \
+            -Dzstd=false
+
+      - name: Build Turnip Vulkan driver
+        run: |
+          cd mesa/build
+          ninja
+
+      - name: Collect Turnip driver
+        run: |
+          mkdir -p output
+          find mesa/build -name "libvulkan_freedreno.so" -exec cp {} output/ \; || true
+          ls -lh output/
+
+      - name: Upload compiled Turnip driver
         uses: actions/upload-artifact@v4
         with:
-          name: Mesa-Turnip-ARM64
-          path: install/lib/libvulkan_freedreno.so
+          name: libvulkan_freedreno
+          path: output/libvulkan_freedreno.so
