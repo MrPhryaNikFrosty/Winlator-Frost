@@ -1,7 +1,10 @@
 name: Build Mesa Turnip (ARM64, cross-built with QEMU)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # ✅ allows manual "Run workflow" trigger
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -16,8 +19,6 @@ jobs:
         run: |
           set -e
           sudo apt-get update -y
-
-          # Essential host packages + cross compilers + qemu
           sudo apt-get install -y --no-install-recommends \
             git wget curl ca-certificates software-properties-common \
             build-essential binutils make perl pkg-config cmake ninja-build \
@@ -31,65 +32,42 @@ jobs:
             libdrm-dev libexpat1-dev libelf-dev bison flex byacc zlib1g-dev \
             spirv-tools glslang-tools libclc-dev
 
-          # Ensure Meson etc are available as new versions in user-local
           python3 -m pip install --upgrade --user meson mako pyyaml ninja
-
-          # Make sure ~/.local/bin is in PATH for subsequent steps
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-          # Add arm64 multiarch and install minimal ARM64 runtime libs so qemu can run tests
           sudo dpkg --add-architecture arm64
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
             libc6:arm64 libstdc++6:arm64 libgcc-s1:arm64 zlib1g:arm64 libexpat1:arm64 libdrm2:arm64
 
-          # Create compatibility symlink expected by some qemu setups if missing
           if [ ! -f /lib/ld-linux-aarch64.so.1 ]; then
             if [ -f /lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 ]; then
               sudo ln -sf /lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 /lib/ld-linux-aarch64.so.1
             fi
           fi
 
-          echo "Host environment prepared"
-          echo "meson -> $(meson --version || true)"
-          echo "qemu -> $(qemu-aarch64-static --version || true)"
-
       - name: Clone Mesa source
         run: |
-          set -e
-          if [ ! -d "${{ github.workspace }}/mesa" ]; then
-            git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git "${{ github.workspace }}/mesa"
-          else
-            cd "${{ github.workspace }}/mesa"
-            git fetch origin main || true
-          fi
-          ls -la "${{ github.workspace }}/mesa"
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          ls -la mesa
 
-      - name: Build glslang (host; needed by Meson checks)
+      - name: Build glslang (host)
         run: |
           set -e
           cd "${{ github.workspace }}"
-          if [ ! -d glslang ]; then
-            git clone --depth=1 https://github.com/KhronosGroup/glslang.git
-          fi
+          git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
-          mkdir -p build && cd build
+          mkdir build && cd build
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF -DCMAKE_INSTALL_PREFIX=/usr ..
           ninja -j$(nproc)
           sudo cp StandAlone/glslangValidator /usr/local/bin/
-          /usr/local/bin/glslangValidator --version || true
+          /usr/local/bin/glslangValidator --version
 
-      - name: Create Meson cross file & build Mesa (cross)
-        env:
-          MESON_ARGS: "-Dplatforms=x11,wayland -Dvulkan-drivers=freedreno -Dgallium-drivers=[] -Dbuildtype=release -Dllvm=disabled -Dshared-llvm=false"
+      - name: Create Meson cross file & build Mesa
         run: |
           set -e
-          cd "${{ github.workspace }}/mesa"
+          cd mesa
 
-          # Sanity check meson version (from user-local)
-          echo "Using meson: $(which meson) $(meson --version)"
-
-          # Write cross file that uses aarch64 cross compilers and qemu as exe_wrapper
           cat > cross_file.txt <<'EOF'
 [binaries]
 c = '/usr/bin/aarch64-linux-gnu-gcc'
@@ -106,41 +84,24 @@ cpu = 'armv8'
 endian = 'little'
 EOF
 
-          # Create build dir and run meson cross-configure
-          rm -rf build
           mkdir -p build && cd build
+          meson setup --cross-file ../cross_file.txt \
+            -Dplatforms=x11,wayland \
+            -Dvulkan-drivers=freedreno \
+            -Dgallium-drivers=[] \
+            -Dbuildtype=release \
+            -Dllvm=disabled \
+            -Dshared-llvm=false \
+            --prefix=/usr/local ..
 
-          # Run meson setup (uses meson from ~/.local/bin)
-          meson setup --cross-file ../cross_file.txt $MESON_ARGS --prefix=/usr/local ..
-
-          # Build & install (installs into the host root under /usr/local)
           ninja -C . -j$(nproc)
           sudo ninja -C . install
 
-      - name: Collect and upload libvulkan_freedreno.so (if present)
+      - name: Collect & upload artifacts
         run: |
           set -e
-          # Try common output locations for the freedreno Vulkan driver and upload whichever exists
-          PATHS=(
-            "${{ github.workspace }}/mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so"
-            "${{ github.workspace }}/mesa/build/src/vulkan/drivers/freedreno/libvulkan_freedreno.so"
-            "${{ github.workspace }}/mesa/build/src/freedreno/libvulkan_freedreno.so"
-          )
-          FOUND=""
-          for p in "${PATHS[@]}"; do
-            if [ -f "$p" ]; then
-              FOUND="$p"
-              break
-            fi
-          done
-          if [ -z "$FOUND" ]; then
-            echo "libvulkan_freedreno.so not found. Listing build tree for debugging:"
-            find "${{ github.workspace }}/mesa/build" -maxdepth 4 -type f -printf '%p\n' || true
-            exit 1
-          fi
-          echo "Found driver at: $FOUND"
           mkdir -p artifacts
-          cp "$FOUND" artifacts/
+          find mesa/build -name "libvulkan_freedreno.so" -exec cp {} artifacts/ \;
           ls -la artifacts
         shell: bash
 
