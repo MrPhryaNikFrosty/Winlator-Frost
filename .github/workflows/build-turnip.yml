@@ -14,9 +14,20 @@ jobs:
 
       - name: Prepare environment and install dependencies
         run: |
+          echo "🔧 Reconfiguring APT sources for ARM64..."
           sudo dpkg --add-architecture arm64
-          sudo sed -i 's|http://archive.ubuntu.com/ubuntu/|http://ports.ubuntu.com/ubuntu-ports/|g' /etc/apt/sources.list
-          sudo apt-get update
+          # Rewrite all APT sources to use ARM-compatible Ubuntu Ports mirror
+          sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
+          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main universe restricted multiverse
+          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe restricted multiverse
+          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main universe restricted multiverse
+          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main universe restricted multiverse
+          EOF
+
+          sudo apt-get clean
+          sudo apt-get update -y
+
+          echo "📦 Installing dependencies..."
           sudo apt-get install -y \
             build-essential python3 python3-pip python3-setuptools python3-mako python3-jinja2 \
             ninja-build git wget unzip pkg-config bison flex cmake meson \
