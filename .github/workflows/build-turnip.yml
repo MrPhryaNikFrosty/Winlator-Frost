@@ -169,12 +169,14 @@ jobs:
           cd "${{ github.workspace }}/mesa/build"
           ninja -j$(nproc)
 
-      - name: Package and Upload Turnip Driver Artifact
+      - name: Prepare Artifacts
         run: |
           set -e
           mkdir -p artifacts
           find "${{ github.workspace }}/mesa/build" -type f -name "libvulkan_freedreno.so" -exec cp {} artifacts/ \; || true
           ls -lh artifacts
+
+      - name: Upload Turnip Driver Artifact
         uses: actions/upload-artifact@v4
         with:
           name: turnip-driver-arm64
