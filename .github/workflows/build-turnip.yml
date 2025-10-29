@@ -20,13 +20,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
           sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
-          # amd64
+          # amd64 repos
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main universe restricted multiverse
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main universe restricted multiverse
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main universe restricted multiverse
           deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main universe restricted multiverse
 
-          # arm64
+          # arm64 repos
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main universe restricted multiverse
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe restricted multiverse
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main universe restricted multiverse
@@ -38,32 +38,71 @@ jobs:
       - name: Install Host + Cross Toolchain + Broad Dependencies
         run: |
           set -e
+          # core host tools
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config cmake ninja-build git wget curl unzip ca-certificates \
             python3 python3-pip python3-venv python3-setuptools python3-wheel python3-mako python3-yaml \
             autoconf automake libtool gettext autopoint help2man \
             bison flex byacc m4 dos2unix rsync gettext \
+            meson
+
+          # cross toolchain + qemu
+          sudo apt-get install -y --no-install-recommends \
             crossbuild-essential-arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            qemu-user-static binfmt-support \
+            qemu-user-static binfmt-support
+
+          # Mesa / Turnip dev libs (arm64)
+          sudo apt-get install -y --no-install-recommends \
             libx11-dev:arm64 libxext-dev:arm64 libxrandr-dev:arm64 libxrender-dev:arm64 \
             libxfixes-dev:arm64 libxdamage-dev:arm64 libxv-dev:arm64 libx11-xcb-dev:arm64 \
             libxcb1-dev:arm64 libxcb-glx0-dev:arm64 libxcb-shm0-dev:arm64 libxcb-dri2-0-dev:arm64 \
             libxcb-dri3-dev:arm64 libxcb-present-dev:arm64 libxcb-sync-dev:arm64 libxcb-xfixes0-dev:arm64 \
             libxshmfence-dev:arm64 libxxf86vm-dev:arm64 libxkbcommon-dev:arm64 \
             libwayland-dev:arm64 wayland-protocols libwayland-egl-backend-dev:arm64 \
-            libdrm-dev:arm64 libdrm2:arm64 libexpat1-dev:arm64 libelf-dev:arm64 \
-            libudev-dev:arm64 libpci-dev:arm64 zlib1g-dev:arm64 \
+            libdrm-dev:arm64 libdrm2:arm64 libpciaccess-dev:arm64 libexpat1-dev:arm64 libelf-dev:arm64 \
+            libudev-dev:arm64 libpci-dev:arm64 zlib1g-dev:arm64 libgbm-dev:arm64 \
             libvulkan-dev:arm64 libxcb-present-dev:arm64
 
+          # utility / optional build libs
           sudo apt-get install -y --no-install-recommends \
             gettext flex bison pkg-config automake libtool python3-distutils-extra \
             x11-utils x11-apps
 
-          python3 -m pip install --upgrade meson ninja mako
+          # update apt again
+          sudo apt-get update -y
 
-      - name: Build SPIR-V Tools
+      - name: Ensure modern Meson + pip tools (user-local)
         run: |
           set -e
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --user "meson>=1.4" mako pyyaml ninja
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "meson version: $(meson --version)"
+          echo "ninja version: $(ninja --version)"
+
+      - name: Verify cross-tools
+        run: |
+          set -e
+          echo "aarch64-linux-gnu-gcc version:"
+          aarch64-linux-gnu-gcc --version || true
+          echo "qemu-aarch64-static version:"
+          qemu-aarch64-static --version || true
+
+      - name: Clone Mesa Source
+        run: |
+          set -e
+          rm -rf mesa
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          cd mesa
+          git submodule update --init --depth=1
+          echo "Mesa commit: $(git rev-parse --short HEAD)"
+
+      - name: Build SPIR-V Tools (install to /usr/local)
+        run: |
+          set -e
+          cd "${{ github.workspace }}"
+          rm -rf SPIRV-Tools
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
           cd SPIRV-Tools
           python3 utils/git-sync-deps
@@ -71,11 +110,12 @@ jobs:
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON -DCMAKE_INSTALL_PREFIX=/usr/local ..
           ninja -j$(nproc)
           sudo ninja install
-          cd ../..
 
-      - name: Build glslangValidator
+      - name: Build glslangValidator (with SPIR-V Tools)
         run: |
           set -e
+          cd "${{ github.workspace }}"
+          rm -rf glslang
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
@@ -88,25 +128,18 @@ jobs:
           ninja -j$(nproc)
           sudo ninja install
           /usr/local/bin/glslangValidator --version || true
-          cd ../..
 
-      - name: Clone Mesa Source
+      - name: Create cross-file for ARM64
         run: |
           set -e
-          rm -rf mesa
-          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
-          cd mesa
-          git submodule update --init --depth=1
-
-      - name: Create ARM64 Cross-File
-        run: |
+          cd "${{ github.workspace }}/mesa"
           cat > cross_file.txt <<'EOF'
           [binaries]
           c = '/usr/bin/aarch64-linux-gnu-gcc'
           cpp = '/usr/bin/aarch64-linux-gnu-g++'
           ar = '/usr/bin/aarch64-linux-gnu-ar'
           strip = '/usr/bin/aarch64-linux-gnu-strip'
-          pkgconfig = 'pkg-config'
+          pkg-config = 'pkg-config'
           exe_wrapper = '/usr/bin/qemu-aarch64-static'
 
           [host_machine]
@@ -116,12 +149,12 @@ jobs:
           endian = 'little'
           EOF
 
-      - name: Configure Mesa for Turnip (freedreno)
+      - name: Configure Mesa (Turnip / freedreno)
         run: |
           set -e
-          cd mesa
+          cd "${{ github.workspace }}/mesa"
           meson setup build \
-            --cross-file ../cross_file.txt \
+            --cross-file cross_file.txt \
             --prefix=/usr/local \
             -Dplatforms=x11,wayland \
             -Dvulkan-drivers=freedreno \
@@ -133,17 +166,15 @@ jobs:
       - name: Build Mesa (Turnip)
         run: |
           set -e
-          cd mesa/build
+          cd "${{ github.workspace }}/mesa/build"
           ninja -j$(nproc)
 
-      - name: Collect Turnip Driver Artifact
+      - name: Package and Upload Turnip Driver Artifact
         run: |
           set -e
           mkdir -p artifacts
-          find mesa/build -type f -name "libvulkan_freedreno.so" -exec cp {} artifacts/ \; || true
+          find "${{ github.workspace }}/mesa/build" -type f -name "libvulkan_freedreno.so" -exec cp {} artifacts/ \; || true
           ls -lh artifacts
-
-      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: turnip-driver-arm64
