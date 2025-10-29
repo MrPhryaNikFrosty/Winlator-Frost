@@ -6,15 +6,16 @@ on:
 jobs:
   build:
     name: Build Mesa Turnip (AArch64)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Prepare environment and install dependencies
         run: |
           sudo dpkg --add-architecture arm64
+          sudo sed -i 's|http://archive.ubuntu.com/ubuntu/|http://ports.ubuntu.com/ubuntu-ports/|g' /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get install -y \
             build-essential python3 python3-pip python3-setuptools python3-mako python3-jinja2 \
@@ -23,9 +24,9 @@ jobs:
             libxcb1-dev:arm64 libxcb-dri3-dev:arm64 libxcb-present-dev:arm64 libxcb-sync-dev:arm64 \
             libx11-dev:arm64 libxext-dev:arm64 libxdamage-dev:arm64 libxfixes-dev:arm64 libexpat1-dev:arm64 \
             libudev-dev:arm64 libvulkan-dev:arm64 libelf-dev:arm64 zlib1g-dev:arm64 \
-            crossbuild-essential-arm64
+            crossbuild-essential-arm64 qemu-user-static
 
-      - name: Upgrade Meson to latest (>=1.4.0)
+      - name: Upgrade Meson to >= 1.4.0
         run: |
           pip install --upgrade meson mako jinja2
 
