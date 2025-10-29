@@ -12,24 +12,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare environment and install dependencies
+      - name: Prepare environment and dependencies
         run: |
-          echo "🔧 Reconfiguring APT sources for ARM64..."
+          echo "🔧 Adding ARM64 architecture..."
           sudo dpkg --add-architecture arm64
-          # Rewrite all APT sources to use ARM-compatible Ubuntu Ports mirror
+
+          echo "🧩 Fixing apt sources for both amd64 and arm64..."
           sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main universe restricted multiverse
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe restricted multiverse
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main universe restricted multiverse
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main universe restricted multiverse
+          # amd64 sources
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main universe restricted multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main universe restricted multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main universe restricted multiverse
+          deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main universe restricted multiverse
+          # arm64 sources
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main universe restricted multiverse
           EOF
 
+          echo "📦 Updating and installing dependencies..."
           sudo apt-get clean
           sudo apt-get update -y
 
-          echo "📦 Installing dependencies..."
           sudo apt-get install -y \
-            build-essential python3 python3-pip python3-setuptools python3-mako python3-jinja2 \
+            build-essential python3 python3-pip python3-setuptools python3-mako python3-jinja2 python3-yaml \
             ninja-build git wget unzip pkg-config bison flex cmake meson \
             libdrm-dev:arm64 libwayland-dev:arm64 wayland-protocols libxkbcommon-dev:arm64 \
             libxcb1-dev:arm64 libxcb-dri3-dev:arm64 libxcb-present-dev:arm64 libxcb-sync-dev:arm64 \
@@ -39,7 +46,16 @@ jobs:
 
       - name: Upgrade Meson to >= 1.4.0
         run: |
-          pip install --upgrade meson mako jinja2
+          python3 -m pip install --upgrade meson mako jinja2 pyyaml
+
+      - name: Build and install glslangValidator
+        run: |
+          git clone --depth=1 https://github.com/KhronosGroup/glslang.git
+          cd glslang
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local .
+          ninja
+          sudo ninja install
+          /usr/local/bin/glslangValidator --version
 
       - name: Clone Mesa repository
         run: |
@@ -47,7 +63,7 @@ jobs:
           cd mesa
           git submodule update --init --recursive
 
-      - name: Create cross-compilation file for ARM64
+      - name: Create ARM64 cross file
         run: |
           cd mesa
           cat > cross_file.txt <<'EOF'
@@ -66,7 +82,7 @@ jobs:
           endian = 'little'
           EOF
 
-      - name: Configure Turnip build with Meson
+      - name: Configure Turnip build
         run: |
           cd mesa
           meson setup build \
@@ -85,13 +101,13 @@ jobs:
           cd mesa/build
           ninja
 
-      - name: Collect Turnip driver
+      - name: Collect built driver
         run: |
           mkdir -p output
           find mesa/build -name "libvulkan_freedreno.so" -exec cp {} output/ \; || true
           ls -lh output/
 
-      - name: Upload compiled Turnip driver
+      - name: Upload built driver artifact
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_freedreno
