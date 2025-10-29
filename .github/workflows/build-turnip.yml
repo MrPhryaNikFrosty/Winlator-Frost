@@ -1,4 +1,4 @@
-name: Build Turnip Vulkan Driver for ARM64 (Winlator-Compatible)
+name: Build Turnip Vulkan Driver (ARM64) — Full Verified
 
 on:
   workflow_dispatch:
@@ -6,34 +6,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    name: Build Turnip Vulkan Driver (ARM64)
+    timeout-minutes: 240
+    name: Build Turnip ARM64
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Don't fail if submodules have missing URLs
           submodules: false
           fetch-depth: 1
 
-      - name: Fix Missing Submodules Gracefully
-        run: |
-          echo "⚙️ Checking .gitmodules..."
-          if [ -f .gitmodules ]; then
-            # Remove invalid submodules (like OpenXR-SDK without URL)
-            grep -B1 'OpenXR-SDK' .gitmodules || true
-            git config --file=.gitmodules --remove-section "submodule.app/src/main/cpp/OpenXR-SDK" || true
-            git add .gitmodules || true
-          fi
-          echo "✅ Submodule check completed. Continuing..."
-
-      - name: Prepare Build Environment
+      - name: Configure APT sources for amd64 + arm64 & add architecture
         run: |
           sudo dpkg --add-architecture arm64
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
+          sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
+          # amd64
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main universe restricted multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main universe restricted multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main universe restricted multiverse
+          deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main universe restricted multiverse
 
-      - name: Install Host + Cross Toolchain and Dependencies (A→Z)
+          # arm64
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main universe restricted multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main universe restricted multiverse
+          EOF
+          sudo apt-get clean
+          sudo apt-get update -y
+
+      - name: Install Host + Cross Toolchain + Broad Dependencies
         run: |
           set -e
           sudo apt-get install -y --no-install-recommends \
@@ -51,42 +53,54 @@ jobs:
             libwayland-dev:arm64 wayland-protocols libwayland-egl-backend-dev:arm64 \
             libdrm-dev:arm64 libdrm2:arm64 libexpat1-dev:arm64 libelf-dev:arm64 \
             libudev-dev:arm64 libpci-dev:arm64 zlib1g-dev:arm64 \
-            libvulkan-dev:arm64 libxcb-present-dev:arm64 \
+            libvulkan-dev:arm64 libxcb-present-dev:arm64
+
+          sudo apt-get install -y --no-install-recommends \
             gettext flex bison pkg-config automake libtool python3-distutils-extra \
             x11-utils x11-apps
-          pip install --upgrade meson ninja mako
 
-      - name: Build glslangValidator (with SPIR-V Tools)
+          python3 -m pip install --upgrade meson ninja mako
+
+      - name: Build SPIR-V Tools
         run: |
           set -e
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools.git
-          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers.git
+          cd SPIRV-Tools
+          python3 utils/git-sync-deps
+          mkdir build && cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          ninja -j$(nproc)
+          sudo ninja install
+          cd ../..
+
+      - name: Build glslangValidator
+        run: |
+          set -e
           git clone --depth=1 https://github.com/KhronosGroup/glslang.git
           cd glslang
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DENABLE_OPT=ON \
-                -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
-                -DSPIRV-Headers_SOURCE_DIR=../../SPIRV-Headers \
-                -DSPIRV-Tools_SOURCE_DIR=../../SPIRV-Tools \
-                -DCMAKE_INSTALL_PREFIX=/usr/local ..
-          make -j$(nproc)
-          sudo make install
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DALLOW_EXTERNAL_SPIRV_TOOLS=ON \
+            -DSPIRV_TOOLS_INSTALL_DIR=/usr/local \
+            -DCMAKE_PREFIX_PATH=/usr/local \
+            -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          ninja -j$(nproc)
+          sudo ninja install
+          /usr/local/bin/glslangValidator --version || true
           cd ../..
-          glslangValidator --version || true
 
-      - name: Prepare Mesa Source
+      - name: Clone Mesa Source
         run: |
           set -e
-          if [ ! -d mesa ]; then
-            git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
-          fi
+          rm -rf mesa
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
-          git submodule update --init --depth=1 || true
+          git submodule update --init --depth=1
 
-      - name: Create ARM64 Cross File
+      - name: Create ARM64 Cross-File
         run: |
-          cat <<EOF > cross_file.txt
+          cat > cross_file.txt <<'EOF'
           [binaries]
           c = '/usr/bin/aarch64-linux-gnu-gcc'
           cpp = '/usr/bin/aarch64-linux-gnu-g++'
@@ -98,38 +112,39 @@ jobs:
           [host_machine]
           system = 'linux'
           cpu_family = 'aarch64'
-          cpu = 'armv8-a'
+          cpu = 'aarch64'
           endian = 'little'
           EOF
 
-      - name: Configure Mesa Build
+      - name: Configure Mesa for Turnip (freedreno)
         run: |
+          set -e
           cd mesa
           meson setup build \
             --cross-file ../cross_file.txt \
+            --prefix=/usr/local \
             -Dplatforms=x11,wayland \
             -Dvulkan-drivers=freedreno \
             -Dgallium-drivers=[] \
             -Dbuildtype=release \
-            -Doptimization=3 \
-            -Dglx=disabled \
-            -Degl=disabled \
-            -Dshared-glapi=disabled \
-            -Dgles1=disabled \
-            -Dgles2=disabled \
-            -Dopengl=false \
-            -Dllvm=disabled \
-            -Dprefix=/usr/local
+            -Dstrip=true
           meson configure build
 
       - name: Build Mesa (Turnip)
         run: |
-          cd mesa
-          ninja -C build
-          ls -lh build/src/freedreno/vulkan || true
+          set -e
+          cd mesa/build
+          ninja -j$(nproc)
 
-      - name: Upload Turnip Driver Artifacts
+      - name: Collect Turnip Driver Artifact
+        run: |
+          set -e
+          mkdir -p artifacts
+          find mesa/build -type f -name "libvulkan_freedreno.so" -exec cp {} artifacts/ \; || true
+          ls -lh artifacts
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: turnip-driver-arm64
-          path: mesa/build/src/freedreno/vulkan
+          path: artifacts/
