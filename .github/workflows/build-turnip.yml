@@ -30,7 +30,8 @@ jobs:
             libwayland-egl-backend-dev libxcb-glx0-dev libxcb-dri2-0-dev \
             libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
             libxcb-randr0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
-            libx11-xcb-dev libvulkan-dev python3-mako
+            libx11-xcb-dev libvulkan-dev python3-mako \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static
 
           pip install meson==1.4.1 mako
 
@@ -79,11 +80,11 @@ jobs:
           cd mesa
           cat > cross_file.txt <<EOF
           [binaries]
-          c = '/usr/bin/aarch64-linux-gnu-gcc'
-          cpp = '/usr/bin/aarch64-linux-gnu-g++'
-          ar = '/usr/bin/aarch64-linux-gnu-ar'
-          strip = '/usr/bin/aarch64-linux-gnu-strip'
-          pkgconfig = '/usr/bin/pkg-config'
+          c = 'aarch64-linux-gnu-gcc'
+          cpp = 'aarch64-linux-gnu-g++'
+          ar = 'aarch64-linux-gnu-ar'
+          strip = 'aarch64-linux-gnu-strip'
+          pkg-config = 'pkg-config'
 
           [host_machine]
           system = 'linux'
