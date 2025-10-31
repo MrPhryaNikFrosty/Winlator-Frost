@@ -1,78 +1,115 @@
-name: Build Turnip (Mesa Aarch64)
+name: Build Turnip Vulkan Driver for ARM64 (Winlator-Compatible)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-turnip:
+  build:
     runs-on: ubuntu-22.04
-
+    name: 🧩 Build Turnip Vulkan (Mesa)
     steps:
-      - name: Checkout repository
+      - name: 🧰 Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          fetch-depth: 1
 
-      - name: Set up APT repositories (fix 404)
+      - name: 🧩 Prepare Clean Workspace
         run: |
-          sudo sed -i 's|http://.*.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list
+          rm -rf mesa build glslang SPIRV-Tools SPIRV-Headers
           sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 🧱 Update Repositories (Stable Mirrors)
+        run: |
+          sudo sed -i 's|archive.ubuntu.com|mirror.init7.net|g' /etc/apt/sources.list
+          sudo sed -i 's|security.ubuntu.com|mirror.init7.net|g' /etc/apt/sources.list
           sudo apt-get update -y
 
-      - name: Install build dependencies
+      - name: 📦 Install All Mesa Build Dependencies
         run: |
           sudo dpkg --add-architecture arm64
           sudo apt-get update -y
-          sudo apt-get install -y \
-            git cmake ninja-build meson python3-mako python3-pip python3-setuptools python3-wheel \
-            pkg-config pkgconf flex bison gettext \
-            llvm llvm-dev clang spirv-tools libclc-dev \
-            libx11-dev libx11-dev:arm64 libx11-xcb-dev libx11-xcb-dev:arm64 \
-            libxcb1-dev libxcb1-dev:arm64 libxcb-dri2-0-dev libxcb-dri3-dev \
-            libxcb-present-dev libxcb-randr0-dev libxcb-shm0-dev \
-            libxcb-sync-dev libxext-dev libxdamage-dev \
-            libxfixes-dev libxrandr-dev libxxf86vm-dev \
-            libxshmfence-dev libdrm-dev libdrm-dev:arm64 \
-            libwayland-dev libwayland-server0:arm64 wayland-protocols \
-            zlib1g-dev zlib1g-dev:arm64 \
-            libexpat1-dev libelf-dev libunwind-dev libomxil-bellagio-dev \
-            glslang-tools vulkan-tools spirv-headers \
-            qemu-user-static gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y --no-install-recommends \
+            git cmake ninja-build meson python3 python3-pip python3-setuptools python3-wheel \
+            pkg-config build-essential bison flex gettext gettext-base \
+            llvm clang libclang-dev libexpat1-dev libzstd-dev libelf-dev \
+            libwayland-dev wayland-protocols libx11-dev libxext-dev libxfixes-dev \
+            libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
+            libxshmfence-dev libxxf86vm-dev libdrm-dev libdrm-amdgpu1 libdrm2 \
+            libgbm-dev libpciaccess-dev zlib1g-dev libunwind-dev \
+            glslang-tools spirv-tools spirv-headers spirv-llvm-translator-dev \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static
 
-      - name: Verify cross-compilation toolchain
+      - name: 🧰 Verify Dependency Installation
         run: |
-          aarch64-linux-gnu-gcc --version
-          aarch64-linux-gnu-g++ --version
+          echo "==== Checking pkg-config availability ====" | tee mesa-deps-check.log
+          pkg-config --list-all | tee -a mesa-deps-check.log
+          echo "==== Checking Mesa critical dependencies ====" | tee -a mesa-deps-check.log
+          for dep in libdrm gbm egl gl xcb-dri3 x11 xshmfence zstd elf expat llvm clang wayland-egl-backend; do
+              echo "Checking for $dep..." | tee -a mesa-deps-check.log
+              pkg-config --exists $dep && echo "$dep found ✅" | tee -a mesa-deps-check.log || echo "$dep MISSING ❌" | tee -a mesa-deps-check.log
+          done
 
-      - name: Prepare Mesa source tree
+      - name: 🧩 Build GLSLang (with SPIRV-Tools)
+        run: |
+          git clone --depth=1 https://github.com/KhronosGroup/glslang.git
+          cd glslang
+          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools External/spirv-tools
+          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers External/spirv-tools/external/spirv-headers
+          mkdir build && cd build
+          cmake -G Ninja -DENABLE_OPT=ON -DALLOW_EXTERNAL_SPIRV_TOOLS=ON -DCMAKE_BUILD_TYPE=Release ..
+          ninja -j$(nproc)
+          sudo ninja install
+
+      - name: 🧱 Clone Mesa Source
+        run: |
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          cd mesa
+          echo "Mesa commit:"
+          git rev-parse HEAD
+
+      - name: ⚙️ Setup Cross File for ARM64
         run: |
           cd mesa
-          git submodule update --init --recursive
-          meson setup build \
+          cat <<EOF > cross_file.txt
+          [binaries]
+          c = '/usr/bin/aarch64-linux-gnu-gcc'
+          cpp = '/usr/bin/aarch64-linux-gnu-g++'
+          ar = '/usr/bin/aarch64-linux-gnu-ar'
+          strip = '/usr/bin/aarch64-linux-gnu-strip'
+          pkgconfig = 'pkg-config'
+          exe_wrapper = '/usr/bin/qemu-aarch64-static'
+
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'armv8-a'
+          endian = 'little'
+          EOF
+
+      - name: 🏗️ Configure Mesa with Meson
+        run: |
+          cd mesa
+          meson setup build/ \
             --cross-file cross_file.txt \
-            --buildtype release \
-            -Dplatforms=x11,wayland,drm,surfaceless \
+            -Dplatforms=x11,wayland \
             -Dvulkan-drivers=freedreno \
-            -Dgallium-drivers=freedreno,swrast,virgl \
-            -Dllvm=true \
-            -Dshared-llvm=true \
-            -Dbuild-tests=false \
-            -Dprefix=/usr \
-            --libdir=lib/aarch64-linux-gnu
+            -Dgallium-drivers=[] \
+            -Dbuildtype=release \
+            -Doptimization=3 \
+            -Dglx=disabled -Degl=disabled -Dshared-glapi=disabled \
+            -Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dllvm=enabled -Dzstd=enabled -Dprefix=/usr/local
 
-      - name: Build Mesa (Turnip)
+      - name: 🔨 Build Mesa
         run: |
-          cd mesa/build
-          ninja -v
+          cd mesa
+          ninja -C build -j$(nproc)
+          mkdir -p ../artifacts
+          cp -r build ../artifacts/mesa-build
 
-      - name: Package Mesa output
-        run: |
-          cd mesa/build
-          tar czf mesa-turnip-aarch64.tar.gz src/freedreno src/gallium src/vulkan
-          mv mesa-turnip-aarch64.tar.gz $GITHUB_WORKSPACE/
-
-      - name: Upload Mesa artifacts
+      - name: 📦 Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-aarch64
-          path: mesa-turnip-aarch64.tar.gz
+          name: mesa-arm64-build
+          path: artifacts/
