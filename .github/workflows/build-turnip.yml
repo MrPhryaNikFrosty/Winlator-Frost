@@ -1,4 +1,4 @@
-name: Build Turnip (Mesa Aarch64)
+name: Build Mesa Turnip (Aarch64)
 
 on:
   workflow_dispatch:
@@ -8,16 +8,35 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # STEP 1: Checkout repo and submodules safely
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false   # disable auto submodule init (we’ll handle it manually)
 
-      - name: Prepare environment
+      - name: Fix submodules (remove missing URLs)
+        run: |
+          if [ -f .gitmodules ]; then
+            echo "Checking submodules..."
+            grep "path =" .gitmodules | while read -r line; do
+              path=$(echo "$line" | awk '{print $3}')
+              url=$(git config --file .gitmodules --get submodule.$path.url || true)
+              if [ -z "$url" ]; then
+                echo "⚠️  Removing broken submodule entry: $path"
+                git config --file .gitmodules --remove-section submodule.$path || true
+                git rm --cached "$path" || true
+              fi
+            done
+            git submodule sync --recursive
+            git submodule update --init --recursive --depth=1 || true
+          else
+            echo "ℹ️  No .gitmodules file found — skipping submodule init."
+          fi
+
+      # STEP 2: Prepare environment for Mesa build
+      - name: Setup environment
         run: |
           sudo dpkg --add-architecture arm64
-
-          # Replace default mirrors with ARM64-compatible ones
           sudo tee /etc/apt/sources.list > /dev/null <<EOF
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
@@ -29,10 +48,10 @@ jobs:
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
           EOF
-
           sudo apt-get update -y
 
-      - name: Install Mesa build dependencies
+      # STEP 3: Install Mesa + Turnip dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get install -y \
             build-essential meson ninja-build python3-mako python3-pip python3-setuptools \
@@ -48,7 +67,8 @@ jobs:
             cmake curl git unzip libzstd-dev libtinfo5 \
             libc6:arm64 libstdc++6:arm64 zlib1g:arm64
 
-      - name: Clone Mesa repository
+      # STEP 4: Clone Mesa and build Turnip driver
+      - name: Clone Mesa repo
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
@@ -67,6 +87,7 @@ jobs:
           ninja -C build
           sudo ninja -C build install
 
+      # STEP 5: Upload artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
