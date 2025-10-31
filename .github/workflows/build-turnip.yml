@@ -8,21 +8,21 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # STEP 1: Checkout repo and submodules safely
+      # STEP 1: Checkout safely (avoid broken submodules)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: false   # disable auto submodule init (we’ll handle it manually)
+          submodules: false
 
       - name: Fix submodules (remove missing URLs)
         run: |
           if [ -f .gitmodules ]; then
-            echo "Checking submodules..."
+            echo "Checking for broken submodules..."
             grep "path =" .gitmodules | while read -r line; do
               path=$(echo "$line" | awk '{print $3}')
               url=$(git config --file .gitmodules --get submodule.$path.url || true)
               if [ -z "$url" ]; then
-                echo "⚠️  Removing broken submodule entry: $path"
+                echo "⚠️ Removing broken submodule entry: $path"
                 git config --file .gitmodules --remove-section submodule.$path || true
                 git rm --cached "$path" || true
               fi
@@ -30,11 +30,11 @@ jobs:
             git submodule sync --recursive
             git submodule update --init --recursive --depth=1 || true
           else
-            echo "ℹ️  No .gitmodules file found — skipping submodule init."
+            echo "ℹ️ No .gitmodules file found — skipping submodule init."
           fi
 
-      # STEP 2: Prepare environment for Mesa build
-      - name: Setup environment
+      # STEP 2: Setup build environment
+      - name: Configure APT sources for ARM64
         run: |
           sudo dpkg --add-architecture arm64
           sudo tee /etc/apt/sources.list > /dev/null <<EOF
@@ -50,27 +50,39 @@ jobs:
           EOF
           sudo apt-get update -y
 
-      # STEP 3: Install Mesa + Turnip dependencies
-      - name: Install dependencies
+      # STEP 3: Install all required dependencies
+      - name: Install Mesa & Turnip dependencies
         run: |
           sudo apt-get install -y \
-            build-essential meson ninja-build python3-mako python3-pip python3-setuptools \
-            python3-packaging python3-wheel pkg-config bison flex gettext \
-            libdrm-dev libexpat1-dev libx11-dev libxext-dev libxdamage-dev \
-            libxfixes-dev libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-            libxcb-glx0-dev libxcb-present-dev libxcb-sync-dev libxcb-xfixes0-dev \
-            libxcb-shm0-dev libxshmfence-dev libxxf86vm-dev libxrandr-dev \
-            libwayland-dev wayland-protocols libwayland-egl-backend-dev \
-            libvulkan-dev libvulkan-volk-dev libva-dev libvdpau-dev \
-            spirv-tools libelf-dev llvm clang libunwind-dev zlib1g-dev \
-            libsensors-dev libomxil-bellagio-dev libclc-dev glslang-dev \
-            cmake curl git unzip libzstd-dev libtinfo5 \
-            libc6:arm64 libstdc++6:arm64 zlib1g:arm64
+            build-essential ninja-build python3 python3-pip python3-setuptools python3-wheel \
+            python3-mako python3-packaging pkg-config bison flex gettext \
+            libdrm-dev libexpat1-dev libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+            libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-glx0-dev libxcb-present-dev \
+            libxcb-sync-dev libxcb-xfixes0-dev libxcb-shm0-dev libxshmfence-dev \
+            libxxf86vm-dev libxrandr-dev libwayland-dev wayland-protocols \
+            libwayland-egl-backend-dev libvulkan-dev libvulkan-volk-dev libva-dev \
+            libvdpau-dev spirv-tools libelf-dev llvm clang libunwind-dev zlib1g-dev \
+            libsensors-dev libomxil-bellagio-dev glslang-dev cmake curl git unzip \
+            libzstd-dev libtinfo5 libc6:arm64 libstdc++6:arm64 zlib1g:arm64
 
-      # STEP 4: Clone Mesa and build Turnip driver
-      - name: Clone Mesa repo
+      # STEP 4: Upgrade Meson to latest version (>= 1.4.0)
+      - name: Upgrade Meson
+        run: |
+          sudo pip3 install --upgrade pip setuptools wheel
+          sudo pip3 install meson ninja
+          echo "✅ Meson version: $(meson --version)"
+
+      # STEP 5: Clone Mesa source
+      - name: Clone Mesa repository
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+          cd mesa
+          echo "Mesa commit:"
+          git log -1 --oneline
+
+      # STEP 6: Configure Mesa for Turnip (Freedreno) build
+      - name: Configure Mesa (Meson)
+        run: |
           cd mesa
           meson setup build \
             --prefix=/usr/local \
@@ -81,13 +93,14 @@ jobs:
             -Dglx=dri -Dgles1=true -Dgles2=true -Dopengl=true \
             -Dbuildtype=release
 
+      # STEP 7: Build and install Mesa Turnip
       - name: Build Mesa Turnip
         run: |
           cd mesa
           ninja -C build
           sudo ninja -C build install
 
-      # STEP 5: Upload artifact
+      # STEP 8: Upload the resulting build artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
