@@ -1,0 +1,123 @@
+name: Build Box64 (Winlator)
+
+on:
+  workflow_dispatch:
+    inputs:
+      box64_version:
+        description: 'Box64 version (branch, tag, or commit hash)'
+        required: true
+        default: 'main'
+        type: string
+  pull_request:
+
+permissions:
+  contents: write  # Allow GITHUB_TOKEN to create a release
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake build-essential \
+          gcc git patchelf xz-utils
+
+    - name: Set Box64 version
+      id: set_version
+      run: |
+        # If triggered manually (workflow_dispatch), use input parameter
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "BOX64_REF=${{ github.event.inputs.box64_version }}" >> $GITHUB_ENV
+        else
+          # For PR events, use the default version
+          echo "BOX64_REF=main" >> $GITHUB_ENV
+        fi
+        echo "Using Box64 version: $BOX64_REF"
+
+    - name: Clone the specified Box64 version
+      run: |
+        git clone https://github.com/ptitSeb/box64
+        cd box64
+        
+        # Checkout the specified version
+        echo "Checking out version: $BOX64_REF"
+        git checkout $BOX64_REF
+        
+        # If it's a branch, pull the latest changes
+        if git show-ref --verify --quiet refs/heads/$BOX64_REF; then
+          echo "Checked out branch $BOX64_REF, pulling latest changes"
+          git pull origin $BOX64_REF
+        fi
+
+    - name: Get version and date info
+      id: version_info
+      run: |
+        cd box64
+        # Get detailed version info
+        BOX64_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+        BUILD_DATE=$(date +%Y%m%d)
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        BRANCH_OR_TAG=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2>/dev/null || echo "detached-$COMMIT_HASH")
+        
+        echo "BOX64_VERSION=$BOX64_VERSION" >> $GITHUB_ENV
+        echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+        echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+        echo "BRANCH_OR_TAG=$BRANCH_OR_TAG" >> $GITHUB_ENV
+        
+        echo "Box64 version: $BOX64_VERSION"
+        echo "Build date: $BUILD_DATE"
+        echo "Commit hash: $COMMIT_HASH"
+        echo "Branch or tag: $BRANCH_OR_TAG"
+
+    - name: Configure build
+      run: |
+        cd box64
+        mkdir -p build
+        cd build
+        echo "Starting CMake configuration..."
+        cmake .. -DARM_DYNAREC=ON -DCMAKE_BUILD_TYPE=Release
+        echo "CMake configuration completed."
+
+    - name: Compile Box64
+      run: |
+        cd box64/build
+        echo "Compiling Box64..."
+        make -j$(nproc)
+        echo "Box64 compilation completed."
+
+    - name: Package build
+      run: |
+        cd box64/build
+        mkdir -p ../../artifacts
+        cp box64 ../../artifacts/
+        cd ../../artifacts
+        tar -czvf box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.gz box64
+        echo "Packaging completed: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.gz"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}
+        path: artifacts/*.tar.gz
+
+    - name: Create or update release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "box64-${{ env.BOX64_VERSION }}"
+        name: "Box64 Build ${{ env.BOX64_VERSION }} (${{ env.BUILD_DATE }})"
+        body: |
+          **Box64 version:** ${{ env.BOX64_VERSION }}
+          **Branch/Tag:** ${{ env.BRANCH_OR_TAG }}
+          **Commit hash:** ${{ env.COMMIT_HASH }}
+          **Build date:** ${{ env.BUILD_DATE }}
+
+          Built for Winlator compatibility (10.1 / 11.0)
+        files: artifacts/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
