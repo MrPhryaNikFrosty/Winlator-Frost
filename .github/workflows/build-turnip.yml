@@ -1,110 +1,83 @@
-name: Build Mesa Turnip (Aarch64)
+name: Build Winlator (Turnip Version)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-turnip:
+  build:
     runs-on: ubuntu-22.04
 
     steps:
-      # STEP 1: Checkout repo safely and clean broken submodules
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: recursive
 
-      - name: Fix and sync submodules
+      - name: Install build dependencies
         run: |
-          if [ -f .gitmodules ]; then
-            echo "Checking for broken submodules..."
-            grep "path =" .gitmodules | while read -r line; do
-              path=$(echo "$line" | awk '{print $3}')
-              url=$(git config --file .gitmodules --get submodule.$path.url || true)
-              if [ -z "$url" ]; then
-                echo "⚠️ Removing broken submodule entry: $path"
-                git config --file .gitmodules --remove-section submodule.$path || true
-                git rm --cached "$path" || true
-              fi
-            done
-            git submodule sync --recursive
-            git submodule update --init --recursive --depth=1 || true
-          else
-            echo "ℹ️ No .gitmodules file found — skipping submodules."
-          fi
+          sudo apt update
+          sudo apt install -y \
+            python3-pip python3-setuptools python3-wheel ninja-build \
+            pkg-config libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+            libx11-xcb-dev libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
+            libxshmfence-dev libxxf86vm-dev libwayland-dev wayland-protocols \
+            libexpat1-dev bison flex cmake llvm clang git wget curl
 
-      # STEP 2: Configure apt repositories for ARM64
-      - name: Configure APT sources
+      - name: Upgrade Meson to latest
         run: |
-          sudo dpkg --add-architecture arm64
-          sudo tee /etc/apt/sources.list > /dev/null <<EOF
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-          deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+          pip3 install --upgrade meson mako
 
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
-          EOF
-          sudo apt-get update -y
-
-      # STEP 3: Install build dependencies
-      - name: Install Mesa dependencies
+      - name: Clone Mesa
         run: |
-          sudo apt-get install -y \
-            build-essential ninja-build python3 python3-pip python3-setuptools python3-wheel \
-            python3-mako python3-packaging pkg-config bison flex gettext \
-            cmake curl git unzip \
-            libdrm-dev libexpat1-dev libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
-            libxcb1-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-glx0-dev libxcb-present-dev \
-            libxcb-sync-dev libxcb-xfixes0-dev libxcb-shm0-dev libxshmfence-dev \
-            libxxf86vm-dev libxrandr-dev libwayland-dev wayland-protocols \
-            libwayland-egl-backend-dev libvulkan-dev libvulkan-volk-dev libva-dev \
-            libvdpau-dev spirv-tools libelf-dev llvm clang libunwind-dev zlib1g-dev \
-            libsensors-dev libomxil-bellagio-dev glslang-dev libzstd-dev \
-            libtinfo5 libc6:arm64 libstdc++6:arm64 zlib1g:arm64
-
-      # STEP 4: Install the latest Meson (>=1.4.0) via pip
-      - name: Upgrade Meson & Ninja
-        run: |
-          sudo pip3 install --upgrade pip setuptools wheel
-          sudo pip3 install meson ninja
-          echo "✅ Meson version: $(meson --version)"
-          echo "✅ Ninja version: $(ninja --version)"
-
-      # STEP 5: Clone Mesa
-      - name: Clone Mesa source
-        run: |
-          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+          git clone https://gitlab.freedesktop.org/mesa/mesa.git --depth=1
           cd mesa
-          git log -1 --oneline
+          git submodule update --init --recursive
 
-      # STEP 6: Configure Mesa (Meson setup)
-      - name: Configure Mesa (Turnip)
+      - name: Configure Mesa with Meson
         run: |
           cd mesa
           meson setup build \
-            --prefix=/usr/local \
-            -Dgallium-drivers=freedreno,llvmpipe \
+            -Dgallium-drivers=freedreno,llvmpipe,softpipe \
             -Dvulkan-drivers=freedreno \
-            -Dplatforms=x11,wayland,drm \
-            -Dllvm=true -Dshared-llvm=true \
-            -Dglx=dri -Dgles1=true -Dgles2=true -Dopengl=true \
-            -Dbuildtype=release
-          echo "✅ Meson configuration complete."
+            -Dplatforms=x11,wayland \
+            -Dllvm=true \
+            -Dshared-llvm=true \
+            -Dglx=dri \
+            -Dgles1=true \
+            -Dgles2=true \
+            -Dopengl=true \
+            -Dbuildtype=release \
+            -Dprefix=/usr/local
 
-      # STEP 7: Build Mesa Turnip
-      - name: Build Mesa Turnip
+      - name: Build Mesa
         run: |
           cd mesa
           ninja -C build
+
+      - name: Install Mesa
+        run: |
+          cd mesa
           sudo ninja -C build install
 
-      # STEP 8: Upload artifacts
-      - name: Upload Mesa Turnip build
+      - name: Clone Winlator source
+        run: |
+          git clone https://github.com/brunodev85/Winlator.git --depth=1
+          cd Winlator
+          git submodule update --init --recursive || true
+
+      - name: Replace Mesa build in Winlator
+        run: |
+          cd Winlator
+          mkdir -p app/src/main/assets/mesa
+          cp -r /usr/local/lib/* app/src/main/assets/mesa/ || true
+
+      - name: Build Winlator APK
+        run: |
+          cd Winlator
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload Winlator APK
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-aarch64
-          path: mesa/build
+          name: Winlator-Turnip-Build
+          path: Winlator/app/build/outputs/apk/release/*.apk
