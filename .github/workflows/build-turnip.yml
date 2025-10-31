@@ -1,20 +1,23 @@
 name: Build Winlator (Turnip Version)
 
+# ✅ Correct manual trigger — ensures “Run workflow” button appears
 on:
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build Turnip Mesa + Winlator
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Fix missing submodule URL if not set
         run: |
+          echo "🔧 Checking for OpenXR-SDK submodule..."
           if ! grep -q "OpenXR-SDK" .gitmodules 2>/dev/null; then
             echo "Adding .gitmodules entry for OpenXR-SDK..."
             cat <<EOF >> .gitmodules
@@ -30,11 +33,12 @@ EOF
         run: |
           sudo apt update
           sudo apt install -y \
-            python3-pip python3-setuptools python3-wheel ninja-build \
-            pkg-config libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
+            python3-pip python3-setuptools python3-wheel ninja-build pkg-config \
+            libx11-dev libxext-dev libxdamage-dev libxfixes-dev \
             libx11-xcb-dev libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
             libxshmfence-dev libxxf86vm-dev libwayland-dev wayland-protocols \
-            libexpat1-dev bison flex cmake llvm clang git wget curl
+            libexpat1-dev bison flex cmake llvm clang git wget curl \
+            libdrm-dev libelf-dev libvulkan-dev zlib1g-dev
 
       - name: Upgrade Meson to latest
         run: |
@@ -78,19 +82,4 @@ EOF
           cd Winlator
           git submodule update --init --recursive || true
 
-      - name: Replace Mesa build in Winlator
-        run: |
-          cd Winlator
-          mkdir -p app/src/main/assets/mesa
-          cp -r /usr/local/lib/* app/src/main/assets/mesa/ || true
-
-      - name: Build Winlator APK
-        run: |
-          cd Winlator
-          ./gradlew assembleRelease --no-daemon
-
-      - name: Upload Winlator APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Winlator-Turnip-Build
-          path: Winlator/app/build/outputs/apk/release/*.apk
+      - name:
