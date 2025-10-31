@@ -13,6 +13,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fix missing submodule URL if not set
+        run: |
+          if ! grep -q "OpenXR-SDK" .gitmodules 2>/dev/null; then
+            echo "Adding .gitmodules entry for OpenXR-SDK..."
+            cat <<EOF >> .gitmodules
+[submodule "app/src/main/cpp/OpenXR-SDK"]
+    path = app/src/main/cpp/OpenXR-SDK
+    url = https://github.com/KhronosGroup/OpenXR-SDK.git
+EOF
+          fi
+          git submodule sync --recursive
+          git submodule update --init --force --depth=1 --recursive || true
+
       - name: Install build dependencies
         run: |
           sudo apt update
