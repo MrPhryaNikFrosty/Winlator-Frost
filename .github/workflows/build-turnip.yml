@@ -1,97 +1,99 @@
-# File: .github/workflows/build-mesa.yml
-name: Build Turnip Vulkan Driver (AArch64, Winlator-Compatible)
+name: Build Mesa Turnip (AArch64, Standalone)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # ✅ Allows manual "Run workflow" button
 
 jobs:
-  build_turnip:
-    name: Build Mesa Turnip (AArch64)
+  build:
+    name: Build Mesa Turnip for Winlator
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Fix missing OpenXR-SDK submodule issue
+      - name: Fix missing submodule URL (OpenXR-SDK)
         run: |
-          if [ ! -f .gitmodules ]; then
-            echo "[submodule \"app/src/main/cpp/OpenXR-SDK\"]" > .gitmodules
+          if [ ! -f .gitmodules ] || ! grep -q "OpenXR-SDK" .gitmodules; then
+            echo "[submodule \"app/src/main/cpp/OpenXR-SDK\"]" >> .gitmodules
             echo "  path = app/src/main/cpp/OpenXR-SDK" >> .gitmodules
             echo "  url = https://github.com/KhronosGroup/OpenXR-SDK.git" >> .gitmodules
           fi
           git submodule sync --recursive
-          git submodule update --init --recursive || true
+          git submodule update --init --recursive --depth 1
 
-      - name: Configure clean APT sources for arm64
+      - name: Configure APT sources for AArch64 (jammy)
         run: |
+          set -eux
           sudo dpkg --add-architecture arm64
           sudo mv /etc/apt/sources.list /etc/apt/sources.list.backup
           cat <<'EOF' | sudo tee /etc/apt/sources.list
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ jammy main restricted universe multiverse
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ jammy-updates main restricted universe multiverse
-          deb [arch=amd64,arm64] http://ports.ubuntu.com/ jammy-security main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
           EOF
           sudo apt-get clean
-          for i in {1..3}; do sudo apt-get update && break || sleep 10; done
+          for i in 1 2 3; do sudo apt-get update && break || sleep 10; done
 
-      - name: Install Mesa build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get install -y \
-            python3-mako python3-pip ninja-build meson pkg-config git build-essential \
-            python3-setuptools python3-wheel cmake bison flex libx11-dev libxext-dev \
-            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-            libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
-            libxcb-xfixes0-dev libxcb-render0-dev libxcb-shm0-dev libxcb1-dev \
-            libxshmfence-dev libxxf86vm-dev libdrm-dev libexpat1-dev zlib1g-dev \
-            libwayland-dev wayland-protocols libvulkan-dev spirv-tools glslang-dev \
-            libelf-dev llvm clang libclc-dev python3-jinja2 libpciaccess-dev \
-            libunwind-dev libudev-dev libxrandr-dev libglvnd-dev glslang-tools
+            ninja-build meson python3-pip python3-setuptools python3-mako \
+            llvm-dev libclang-dev libdrm-dev libexpat1-dev libx11-dev libxext-dev \
+            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libxshmfence-dev \
+            libxxf86vm-dev libwayland-dev wayland-protocols libvulkan-dev \
+            bison flex git cmake build-essential pkg-config zlib1g-dev wget unzip
 
-      - name: Upgrade Meson and build tools
-        run: |
-          sudo pip3 install --upgrade meson ninja mako jinja2
+          pip install --upgrade meson==1.5.0 mako
 
-      - name: Clone Mesa main branch
+      - name: Clone Mesa (main branch)
         run: |
-          git clone --branch main https://gitlab.freedesktop.org/mesa/mesa.git
+          git clone --depth 1 --branch main https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
-          git submodule update --init --recursive
+          mkdir -p build
 
-      - name: Configure Mesa (Meson)
+      - name: Configure Meson for AArch64 Turnip
         run: |
-          cd mesa
-          meson setup build/ \
-            -Dgallium-drivers=freedreno,llvmpipe \
-            -Dvulkan-drivers=freedreno \
+          cd mesa/build
+          meson setup \
+            --prefix=/usr \
+            --libdir=lib/aarch64-linux-gnu \
+            --buildtype=release \
             -Dplatforms=x11,wayland \
-            -Dllvm=true \
-            -Dshared-llvm=true \
+            -Dgallium-drivers=swrast \
+            -Dvulkan-drivers=freedreno \
+            -Dllvm=enabled \
+            -Dshared-llvm=enabled \
             -Dglx=dri \
-            -Dgles1=true \
-            -Dgles2=true \
+            -Dgles1=disabled \
+            -Dgles2=enabled \
             -Dopengl=true \
+            -Dvulkan-layers=device-select \
             -Dbuildtype=release \
-            -Dprefix=/usr/local
+            ..
 
-      - name: Build Mesa
+      - name: Build Mesa (Turnip)
         run: |
-          cd mesa
-          ninja -C build/
+          cd mesa/build
+          ninja -v
 
-      - name: Install Mesa
+      - name: List build output
         run: |
-          cd mesa
-          sudo ninja -C build/ install
+          cd mesa/build
+          find . -type f -name "*.so" || true
 
-      - name: Package Turnip Vulkan Driver
-        run: |
-          mkdir -p mesa-output
-          cp mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so mesa-output/ || true
-          cp mesa/build/meson-logs/meson-log.txt mesa-output/ || true
-
-      - name: Upload Build Artifacts
+      - name: Upload built Turnip driver
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-aarch64-build
-          path: mesa-output/
+          name: mesa-turnip-aarch64
+          path: |
+            mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so
+            mesa/build/meson-logs/meson-log.txt
