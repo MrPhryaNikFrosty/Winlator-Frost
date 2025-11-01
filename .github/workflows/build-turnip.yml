@@ -1,12 +1,11 @@
 # =====================================================
 # Mesa Turnip Builder for Winlator (AArch64)
-# Includes all fixes: jammy repos, OpenXR-SDK submodule, Meson flags, glslangValidator
 # =====================================================
 
 name: Build Mesa Turnip for Winlator
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # ✅ ensures manual "Run workflow" button
 
 jobs:
   build:
@@ -17,15 +16,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------------------------------------
-      # Fix broken or outdated jammy sources for AArch64
-      # -------------------------------------------------
       - name: Fix Ubuntu sources (AArch64)
         run: |
-          echo ">>> Cleaning and rewriting APT sources for jammy (AArch64)..."
+          echo ">>> Fixing jammy APT sources..."
           sudo dpkg --add-architecture arm64 || true
           sudo rm -f /etc/apt/sources.list.d/*.list || true
-          sudo rm -f /etc/apt/sources.list || true
           sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
           deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
           deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
@@ -35,12 +30,8 @@ jobs:
           sudo apt-get clean
           sudo apt-get update -o Acquire::Retries=5 || (sleep 5 && sudo apt-get update -o Acquire::Retries=5)
 
-      # -------------------------------------------------
-      # Install all build dependencies
-      # -------------------------------------------------
       - name: Install dependencies
         run: |
-          echo ">>> Installing build dependencies..."
           sudo apt-get install -y --no-install-recommends \
             git ninja-build meson python3-pip python3-mako python3-setuptools \
             llvm-dev libclang-dev libdrm-dev libexpat1-dev libx11-dev \
@@ -51,16 +42,12 @@ jobs:
             build-essential libffi-dev python3-wheel
           pip install --upgrade meson==1.5.0 mako
 
-      # -------------------------------------------------
-      # Clone Mesa and fix missing submodules (OpenXR-SDK)
-      # -------------------------------------------------
       - name: Clone Mesa with OpenXR-SDK submodule fix
         run: |
-          echo ">>> Cloning Mesa repository..."
           git clone --depth 1 --branch main https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
           if ! grep -q "OpenXR-SDK" .gitmodules; then
-            echo ">>> OpenXR-SDK submodule missing in .gitmodules, fixing..."
+            echo ">>> Fixing missing OpenXR-SDK submodule..."
             cat >> .gitmodules <<'EOF'
 [submodule "app/src/main/cpp/OpenXR-SDK"]
     path = app/src/main/cpp/OpenXR-SDK
@@ -70,28 +57,19 @@ EOF
           git submodule update --init --recursive || true
           mkdir -p build
 
-      # -------------------------------------------------
-      # Fix missing or outdated glslangValidator binary
-      # -------------------------------------------------
       - name: Install glslangValidator
         run: |
-          echo ">>> Checking glslangValidator..."
           if ! command -v glslangValidator &>/dev/null; then
             sudo apt-get install -y glslang-tools || true
           fi
           if ! command -v glslangValidator &>/dev/null; then
-            echo ">>> Downloading glslangValidator manually..."
             wget -q https://github.com/KhronosGroup/glslang/releases/latest/download/glslangValidator -O /usr/local/bin/glslangValidator
             chmod +x /usr/local/bin/glslangValidator
           fi
           glslangValidator --version || echo "glslangValidator installed."
 
-      # -------------------------------------------------
-      # Configure Mesa for Turnip (no swrast or drm mistakes)
-      # -------------------------------------------------
       - name: Configure Meson for Turnip
         run: |
-          echo ">>> Configuring Meson build..."
           cd mesa/build
           meson setup \
             --prefix=/usr \
@@ -109,18 +87,11 @@ EOF
             -Dvulkan-layers=device-select \
             ..
 
-      # -------------------------------------------------
-      # Build Mesa Turnip
-      # -------------------------------------------------
       - name: Build Mesa Turnip
         run: |
-          echo ">>> Building Mesa Turnip..."
           cd mesa/build
           ninja -v
 
-      # -------------------------------------------------
-      # Upload Turnip artifact
-      # -------------------------------------------------
       - name: Upload Turnip artifact
         uses: actions/upload-artifact@v4
         with:
