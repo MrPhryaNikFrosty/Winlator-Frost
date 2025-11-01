@@ -5,7 +5,7 @@
 name: Build Mesa Turnip for Winlator
 
 on:
-  workflow_dispatch:   # ✅ ensures manual "Run workflow" button
+  workflow_dispatch: {}   # ✅ allows manual "Run workflow" button
 
 jobs:
   build:
@@ -15,22 +15,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
+      # ✅ Fix jammy APT sources for AArch64
       - name: Fix Ubuntu sources (AArch64)
         run: |
-          echo ">>> Fixing jammy APT sources..."
+          echo ">>> Updating jammy APT sources for AArch64..."
           sudo dpkg --add-architecture arm64 || true
           sudo rm -f /etc/apt/sources.list.d/*.list || true
           sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
           deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
           deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
           deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
           EOF
           sudo apt-get clean
-          sudo apt-get update -o Acquire::Retries=5 || (sleep 5 && sudo apt-get update -o Acquire::Retries=5)
+          sudo apt-get update -o Acquire::Retries=5 || (sleep 10 && sudo apt-get update -o Acquire::Retries=5)
 
-      - name: Install dependencies
+      # ✅ Install dependencies + GLSLang fix
+      - name: Install build dependencies
         run: |
           sudo apt-get install -y --no-install-recommends \
             git ninja-build meson python3-pip python3-mako python3-setuptools \
@@ -39,15 +43,32 @@ jobs:
             libxcb-present-dev libxcb-sync-dev libxshmfence-dev \
             libxxf86vm-dev libwayland-dev wayland-protocols \
             libvulkan-dev bison flex cmake pkg-config zlib1g-dev wget unzip \
-            build-essential libffi-dev python3-wheel
+            build-essential libffi-dev python3-wheel glslang-dev glslang-tools
           pip install --upgrade meson==1.5.0 mako
+          # ✅ Ensure glslangValidator is in PATH
+          if ! command -v glslangValidator &>/dev/null; then
+            echo ">>> glslangValidator missing — linking manually..."
+            if [ -f /usr/bin/glslangValidator ]; then
+              sudo ln -sf /usr/bin/glslangValidator /usr/local/bin/glslangValidator
+            elif [ -f /usr/lib/x86_64-linux-gnu/glslangValidator ]; then
+              sudo ln -sf /usr/lib/x86_64-linux-gnu/glslangValidator /usr/local/bin/glslangValidator
+            else
+              echo ">>> Downloading GLSLang binary..."
+              wget -q https://github.com/KhronosGroup/glslang/releases/latest/download/glslangValidator-linux-x64.zip -O /tmp/glslang.zip
+              unzip -o /tmp/glslang.zip -d /tmp/
+              sudo mv /tmp/glslangValidator /usr/local/bin/
+              sudo chmod +x /usr/local/bin/glslangValidator
+            fi
+          fi
+          echo "✅ glslangValidator path:" $(which glslangValidator)
 
-      - name: Clone Mesa with OpenXR-SDK submodule fix
+      # ✅ Mesa clone + OpenXR fix
+      - name: Clone Mesa repo and fix OpenXR submodule
         run: |
-          git clone --depth 1 --branch main https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          git clone --depth=1 --branch main https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
           if ! grep -q "OpenXR-SDK" .gitmodules; then
-            echo ">>> Fixing missing OpenXR-SDK submodule..."
+            echo ">>> Adding missing OpenXR-SDK submodule..."
             cat >> .gitmodules <<'EOF'
 [submodule "app/src/main/cpp/OpenXR-SDK"]
     path = app/src/main/cpp/OpenXR-SDK
@@ -57,18 +78,8 @@ EOF
           git submodule update --init --recursive || true
           mkdir -p build
 
-      - name: Install glslangValidator
-        run: |
-          if ! command -v glslangValidator &>/dev/null; then
-            sudo apt-get install -y glslang-tools || true
-          fi
-          if ! command -v glslangValidator &>/dev/null; then
-            wget -q https://github.com/KhronosGroup/glslang/releases/latest/download/glslangValidator -O /usr/local/bin/glslangValidator
-            chmod +x /usr/local/bin/glslangValidator
-          fi
-          glslangValidator --version || echo "glslangValidator installed."
-
-      - name: Configure Meson for Turnip
+      # ✅ Correct Meson values for Mesa Turnip (Winlator-compatible)
+      - name: Configure Meson
         run: |
           cd mesa/build
           meson setup \
@@ -87,12 +98,14 @@ EOF
             -Dvulkan-layers=device-select \
             ..
 
+      # ✅ Build
       - name: Build Mesa Turnip
         run: |
           cd mesa/build
           ninja -v
 
-      - name: Upload Turnip artifact
+      # ✅ Upload built Vulkan driver
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-aarch64
