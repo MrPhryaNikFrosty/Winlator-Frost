@@ -22,22 +22,16 @@ jobs:
         run: |
           set -eux
           if [ -f .gitmodules ]; then
-            # If there is an entry but no URL, add canonical Khronos URL
             if grep -q "path = app/src/main/cpp/OpenXR-SDK" .gitmodules; then
               url=$(git config --file .gitmodules --get submodule.app/src/main/cpp/OpenXR-SDK.url || true)
               if [ -z "$url" ]; then
                 echo "Adding canonical URL for OpenXR-SDK in .gitmodules..."
-                # Add URL entry for that submodule path
                 git config --file .gitmodules submodule.app/src/main/cpp/OpenXR-SDK.url https://github.com/KhronosGroup/OpenXR-SDK.git
-                # make sure git sees the change
                 git add .gitmodules || true
               fi
             fi
-            # If .gitmodules still references a submodule path that is intentionally missing,
-            # remove it to avoid checkout errors.
             if ! grep -q "url" .gitmodules; then
-              echo ".gitmodules has no url entries — removing broken entries to be safe"
-              # Remove the problematic submodule section(s) conservatively
+              echo ".gitmodules has no valid url entries — removing broken submodule section"
               git config --file .gitmodules --remove-section submodule."app/src/main/cpp/OpenXR-SDK" || true
               git rm --cached app/src/main/cpp/OpenXR-SDK || true
               rm -rf app/src/main/cpp/OpenXR-SDK || true
@@ -46,7 +40,6 @@ jobs:
           else
             echo "No .gitmodules file — nothing to fix."
           fi
-          # sync and init valid submodules (allow failure)
           git submodule sync --recursive || true
           git submodule update --init --recursive --depth=1 || true
 
@@ -55,7 +48,6 @@ jobs:
         run: |
           set -eux
           sudo dpkg --add-architecture arm64 || true
-          # Back up then write combined sources with explicit archs
           sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak || true
           cat <<'EOF' | sudo tee /etc/apt/sources.list
 deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
@@ -65,18 +57,17 @@ deb [arch=amd64,arm64] http://security.ubuntu.com/ubuntu jammy-security main res
 EOF
           sudo apt-get update -y
 
-      # 4) Install required system packages (host + some arm64 devs)
+      # 4) Install required system packages
       - name: Install system dependencies
         run: |
           set -eux
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build git wget curl unzip zip \
             python3 python3-pip python3-setuptools python3-wheel python3-mako \
-            pkg-config pkgconf bison flex byacc autoconf automake libtool gettext \
+            pkg-config pkgconf bison flex autoconf automake libtool gettext \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static \
             crossbuild-essential-arm64
 
-          # graphics/dev packages (host) and essential arm64 devs (so meson finds .pc files)
           sudo apt-get install -y --no-install-recommends \
             libdrm-dev libexpat1-dev libelf-dev libgbm-dev libpciaccess-dev \
             libx11-dev libxext-dev libxrandr-dev libxrender-dev libxfixes-dev libxdamage-dev \
@@ -86,85 +77,75 @@ EOF
             libwayland-dev wayland-protocols libwayland-egl-backend-dev \
             libvulkan-dev spirv-tools spirv-headers glslang-tools || true
 
-          # libglvnd & mesa devs for host detection (helps meson find libglvnd)
           sudo apt-get install -y --no-install-recommends \
             libglvnd-dev libgl1-mesa-dev libegl1-mesa-dev || true
 
-      # 5) Ensure Meson (>=1.4) & Ninja from pip so we override old apt meson
+      # 5) Ensure Meson (>=1.4) & Ninja from pip
       - name: Install Meson & Ninja via pip
         run: |
           set -eux
           sudo python3 -m pip install --upgrade pip setuptools wheel
-          sudo python3 -m pip install meson>=1.4 ninja mako pyyaml
-          echo "meson -> $(which meson) ; version -> $(meson --version)"
-          echo "ninja -> $(which ninja) ; version -> $(ninja --version)"
+          sudo python3 -m pip install "meson>=1.4" ninja mako pyyaml
+          meson --version
+          ninja --version
 
-      # 6) Diagnostic: show pkg-config list & glslang status (helps debug missing PC files)
-      - name: Diagnostic: pkg-config and glslangValidator checks
+      # 6) Diagnostic: pkg-config and glslangValidator checks
+      - name: Diagnostic checks
         run: |
           set -eux
-          echo "=== pkg-config search paths ==="
           pkg-config --variable pc_path pkg-config || true
-          echo "=== list all pkg-config entries (grep for common ones) ==="
-          pkg-config --list-all | egrep 'drm|gbm|x11|xcb|egl|glvnd|vulkan' || true
-          echo "=== glslangValidator ==="
+          pkg-config --list-all | grep -E 'drm|gbm|x11|xcb|egl|glvnd|vulkan' || true
           if command -v glslangValidator >/dev/null 2>&1; then
-            glslangValidator --version || true
+            glslangValidator --version
           else
-            echo "glslangValidator NOT found"
+            echo "glslangValidator not found"
           fi
 
-      # 7) Fallback: build & install glslang if glslangValidator missing
+      # 7) Fallback: build & install glslang if missing
       - name: Build glslang from source if needed
         run: |
           set -eux
           if ! command -v glslangValidator >/dev/null 2>&1; then
-            echo "Building glslang from source..."
             git clone --depth=1 https://github.com/KhronosGroup/glslang.git glslang-src
             cd glslang-src
-            mkdir -p build && cd build
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DALLOW_EXTERNAL_SPIRV_TOOLS=OFF ..
+            mkdir build && cd build
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
             ninja -j$(nproc)
             sudo ninja install
             cd ../..
-            echo "glslangValidator installed at $(which glslangValidator || echo /usr/local/bin/glslangValidator)"
-          else
-            echo "glslangValidator present, skip build."
           fi
 
-      # 8) Clone Mesa (main) into workspace
+      # 8) Clone Mesa (main)
       - name: Clone Mesa main (fresh)
         run: |
           set -eux
           rm -rf mesa
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
-          # try to init submodules; allow failing to keep build moving
           git submodule update --init --depth=1 --recursive || true
           echo "Mesa commit: $(git rev-parse --short HEAD)"
 
-      # 9) Create Meson cross-file for aarch64 (used by meson setup)
+      # 9) Create Meson cross file
       - name: Create Meson cross file (AArch64)
         working-directory: mesa
         run: |
           cat > cross_file.txt <<'EOF'
-          [binaries]
-          c = '/usr/bin/aarch64-linux-gnu-gcc'
-          cpp = '/usr/bin/aarch64-linux-gnu-g++'
-          ar = '/usr/bin/aarch64-linux-gnu-ar'
-          strip = '/usr/bin/aarch64-linux-gnu-strip'
-          pkgconfig = '/usr/bin/pkg-config'
-          exe_wrapper = '/usr/bin/qemu-aarch64-static'
+[binaries]
+c = '/usr/bin/aarch64-linux-gnu-gcc'
+cpp = '/usr/bin/aarch64-linux-gnu-g++'
+ar = '/usr/bin/aarch64-linux-gnu-ar'
+strip = '/usr/bin/aarch64-linux-gnu-strip'
+pkgconfig = '/usr/bin/pkg-config'
+exe_wrapper = '/usr/bin/qemu-aarch64-static'
 
-          [host_machine]
-          system = 'linux'
-          cpu_family = 'aarch64'
-          cpu = 'aarch64'
-          endian = 'little'
-          EOF
-          echo "Created cross_file.txt"; sed -n '1,200p' cross_file.txt || true
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOF
 
-      # 10) Meson configure — valid option values only (no 'drm' or 'swrast')
+      # 10) Meson configure — only valid values
       - name: Meson setup (configure Mesa for Turnip)
         working-directory: mesa
         run: |
@@ -183,7 +164,7 @@ EOF
             -Dgles2=true \
             -Dopengl=true \
             -Dbuild-tests=false \
-            -Dbuildtype=release || (echo "Meson configure failed; printing meson log" && sed -n '1,200p' build/meson-logs/meson-log.txt || true && exit 1)
+            -Dbuildtype=release
 
       # 11) Build Mesa (Turnip)
       - name: Build Mesa (Turnip/freedreno)
@@ -192,14 +173,12 @@ EOF
           set -eux
           ninja -C build -j$(nproc)
           mkdir -p ../artifacts
-          # copy the typical driver outputs (if present)
           find build -type f -name "libvulkan_freedreno.so" -exec cp {} ../artifacts/ \; || true
           find build -type f -name "libgallium*.so" -exec cp {} ../artifacts/ \; || true
-          # Also copy any vulkan driver libs under src if present
           find build -type f -path "*/freedreno/*vulkan*.so" -exec cp {} ../artifacts/ \; || true
           ls -lah ../artifacts || true
 
-      # 12) Package .so outputs into a zip (if any exist)
+      # 12) Package .so outputs
       - name: Package Turnip .so outputs
         run: |
           set -eux
@@ -208,12 +187,11 @@ EOF
           files=( *.so )
           if [ ${#files[@]} -gt 0 ]; then
             zip -r mesa-turnip-arm64-winlator.zip ./*.so
-            echo "Packaged mesa-turnip-arm64-winlator.zip"
           else
             echo "No .so files found to package"
           fi
 
-      # 13) Upload binaries artifact (only the zip / .so)
+      # 13) Upload built driver binaries
       - name: Upload built driver binaries
         uses: actions/upload-artifact@v4
         with:
@@ -223,12 +201,11 @@ EOF
             artifacts/*.so
           if-no-files-found: warn
 
-      # 14) Upload meson logs & diagnostics (always helpful)
+      # 14) Upload logs
       - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-logs
           path: |
             mesa/build/meson-logs/meson-log.txt
-            mesa-deps-check.log
           if-no-files-found: ignore
