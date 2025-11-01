@@ -1,3 +1,4 @@
+# File: .github/workflows/build-mesa.yml
 name: Build Turnip Vulkan Driver (AArch64, Winlator-Compatible)
 
 on:
@@ -9,151 +10,59 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1) Checkout WITHOUT submodules (avoid auto init errors)
       - name: Checkout repository (no submodules)
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: false
 
-      # 2) Fix or provide OpenXR-SDK submodule URL (if missing) or remove invalid entry
-      - name: Ensure OpenXR-SDK submodule has a valid URL (or remove it)
+      - name: Fix missing OpenXR-SDK submodule issue
         run: |
-          set -eux
-          if [ -f .gitmodules ]; then
-            if grep -q "path = app/src/main/cpp/OpenXR-SDK" .gitmodules; then
-              url=$(git config --file .gitmodules --get submodule.app/src/main/cpp/OpenXR-SDK.url || true)
-              if [ -z "$url" ]; then
-                echo "Adding canonical URL for OpenXR-SDK in .gitmodules..."
-                git config --file .gitmodules submodule.app/src/main/cpp/OpenXR-SDK.url https://github.com/KhronosGroup/OpenXR-SDK.git
-                git add .gitmodules || true
-              fi
-            fi
-            if ! grep -q "url" .gitmodules; then
-              echo ".gitmodules has no valid url entries — removing broken submodule section"
-              git config --file .gitmodules --remove-section submodule."app/src/main/cpp/OpenXR-SDK" || true
-              git rm --cached app/src/main/cpp/OpenXR-SDK || true
-              rm -rf app/src/main/cpp/OpenXR-SDK || true
-              [ ! -s .gitmodules ] && rm -f .gitmodules || true
-            fi
-          else
-            echo "No .gitmodules file — nothing to fix."
+          if [ ! -f .gitmodules ]; then
+            echo "[submodule \"app/src/main/cpp/OpenXR-SDK\"]" > .gitmodules
+            echo "  path = app/src/main/cpp/OpenXR-SDK" >> .gitmodules
+            echo "  url = https://github.com/KhronosGroup/OpenXR-SDK.git" >> .gitmodules
           fi
-          git submodule sync --recursive || true
-          git submodule update --init --recursive --depth=1 || true
+          git submodule sync --recursive
+          git submodule update --init --recursive || true
 
-      # 3) Add arm64 architecture + correct apt sources (so :arm64 packages do not 404)
-      - name: Enable arm64 and add correct jammy sources
+      - name: Update and add correct AArch64 sources
         run: |
-          set -eux
-          sudo dpkg --add-architecture arm64 || true
-          sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak || true
-          cat <<'EOF' | sudo tee /etc/apt/sources.list
-deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
-deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
-deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-deb [arch=amd64,arm64] http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
-EOF
-          sudo apt-get update -y
+          sudo dpkg --add-architecture arm64
+          echo "deb [arch=arm64,amd64] http://ports.ubuntu.com/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-jammy.list
+          echo "deb [arch=arm64,amd64] http://ports.ubuntu.com/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list
+          echo "deb [arch=arm64,amd64] http://ports.ubuntu.com/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list
+          sudo apt-get update
 
-      # 4) Install required system packages
-      - name: Install system dependencies
+      - name: Install Mesa build dependencies
         run: |
-          set -eux
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build git wget curl unzip zip \
-            python3 python3-pip python3-setuptools python3-wheel python3-mako \
-            pkg-config pkgconf bison flex autoconf automake libtool gettext \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static \
-            crossbuild-essential-arm64
+          sudo apt-get install -y \
+            python3-mako python3-pip ninja-build meson pkg-config git build-essential \
+            python3-setuptools python3-wheel cmake bison flex libx11-dev libxext-dev \
+            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
+            libxcb-present-dev libxcb-sync-dev libxcb-randr0-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libxcb-render0-dev libxcb-shm0-dev libxcb1-dev \
+            libxshmfence-dev libxxf86vm-dev libdrm-dev libexpat1-dev zlib1g-dev \
+            libwayland-dev wayland-protocols libvulkan-dev spirv-tools glslang-dev \
+            libelf-dev llvm clang libclc-dev python3-jinja2 libpciaccess-dev \
+            libunwind-dev libudev-dev libxrandr-dev libxcb-glx0-dev libxcb-dri2-0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libx11-xcb-dev \
+            libxrandr-dev libxext-dev libxdamage-dev libxfixes-dev libxxf86vm-dev \
+            libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev \
+            libxcb-sync-dev libxshmfence-dev libglvnd-dev glslang-tools
 
-          sudo apt-get install -y --no-install-recommends \
-            libdrm-dev libexpat1-dev libelf-dev libgbm-dev libpciaccess-dev \
-            libx11-dev libxext-dev libxrandr-dev libxrender-dev libxfixes-dev libxdamage-dev \
-            libx11-xcb-dev libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
-            libxcb-present-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-shm0-dev \
-            libxshmfence-dev libxxf86vm-dev libxkbcommon-dev \
-            libwayland-dev wayland-protocols libwayland-egl-backend-dev \
-            libvulkan-dev spirv-tools spirv-headers glslang-tools || true
-
-          sudo apt-get install -y --no-install-recommends \
-            libglvnd-dev libgl1-mesa-dev libegl1-mesa-dev || true
-
-      # 5) Ensure Meson (>=1.4) & Ninja from pip
-      - name: Install Meson & Ninja via pip
+      - name: Upgrade Meson to latest version
         run: |
-          set -eux
-          sudo python3 -m pip install --upgrade pip setuptools wheel
-          sudo python3 -m pip install "meson>=1.4" ninja mako pyyaml
-          meson --version
-          ninja --version
+          sudo pip3 install --upgrade meson ninja mako jinja2
 
-      # 6) Diagnostic: pkg-config and glslangValidator checks
-      - name: Diagnostic checks
+      - name: Clone Mesa main branch
         run: |
-          set -eux
-          pkg-config --variable pc_path pkg-config || true
-          pkg-config --list-all | grep -E 'drm|gbm|x11|xcb|egl|glvnd|vulkan' || true
-          if command -v glslangValidator >/dev/null 2>&1; then
-            glslangValidator --version
-          else
-            echo "glslangValidator not found"
-          fi
-
-      # 7) Fallback: build & install glslang if missing
-      - name: Build glslang from source if needed
-        run: |
-          set -eux
-          if ! command -v glslangValidator >/dev/null 2>&1; then
-            git clone --depth=1 https://github.com/KhronosGroup/glslang.git glslang-src
-            cd glslang-src
-            mkdir build && cd build
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
-            ninja -j$(nproc)
-            sudo ninja install
-            cd ../..
-          fi
-
-      # 8) Clone Mesa (main)
-      - name: Clone Mesa main (fresh)
-        run: |
-          set -eux
-          rm -rf mesa
-          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          git clone --branch main https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
-          git submodule update --init --depth=1 --recursive || true
-          echo "Mesa commit: $(git rev-parse --short HEAD)"
+          git submodule update --init --recursive
 
-      # 9) Create Meson cross file
-      - name: Create Meson cross file (AArch64)
-        working-directory: mesa
+      - name: Configure Mesa with Meson
         run: |
-          cat > cross_file.txt <<'EOF'
-[binaries]
-c = '/usr/bin/aarch64-linux-gnu-gcc'
-cpp = '/usr/bin/aarch64-linux-gnu-g++'
-ar = '/usr/bin/aarch64-linux-gnu-ar'
-strip = '/usr/bin/aarch64-linux-gnu-strip'
-pkgconfig = '/usr/bin/pkg-config'
-exe_wrapper = '/usr/bin/qemu-aarch64-static'
-
-[host_machine]
-system = 'linux'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-EOF
-
-      # 10) Meson configure — only valid values
-      - name: Meson setup (configure Mesa for Turnip)
-        working-directory: mesa
-        run: |
-          set -eux
-          meson setup build \
-            --prefix=/usr/local \
-            --libdir=lib/aarch64-linux-gnu \
-            --cross-file cross_file.txt \
-            -Dgallium-drivers=freedreno,llvmpipe,softpipe \
+          cd mesa
+          meson setup build/ \
+            -Dgallium-drivers=freedreno,llvmpipe \
             -Dvulkan-drivers=freedreno \
             -Dplatforms=x11,wayland \
             -Dllvm=true \
@@ -162,49 +71,27 @@ EOF
             -Dgles1=true \
             -Dgles2=true \
             -Dopengl=true \
-            -Dbuild-tests=false \
-            -Dbuildtype=release
+            -Dbuildtype=release \
+            -Dprefix=/usr/local
 
-      # 11) Build Mesa (Turnip)
-      - name: Build Mesa (Turnip/freedreno)
-        working-directory: mesa
+      - name: Build Mesa
         run: |
-          set -eux
-          ninja -C build -j$(nproc)
-          mkdir -p ../artifacts
-          find build -type f -name "libvulkan_freedreno.so" -exec cp {} ../artifacts/ \; || true
-          find build -type f -name "libgallium*.so" -exec cp {} ../artifacts/ \; || true
-          find build -type f -path "*/freedreno/*vulkan*.so" -exec cp {} ../artifacts/ \; || true
-          ls -lah ../artifacts || true
+          cd mesa
+          ninja -C build/
 
-      # 12) Package .so outputs
-      - name: Package Turnip .so outputs
+      - name: Install Mesa
         run: |
-          set -eux
-          cd artifacts || exit 0
-          shopt -s nullglob || true
-          files=( *.so )
-          if [ ${#files[@]} -gt 0 ]; then
-            zip -r mesa-turnip-arm64-winlator.zip ./*.so
-          else
-            echo "No .so files found to package"
-          fi
+          cd mesa
+          sudo ninja -C build/ install
 
-      # 13) Upload built driver binaries
-      - name: Upload built driver binaries
+      - name: Package Turnip Vulkan Driver artifacts
+        run: |
+          mkdir -p mesa-output
+          cp mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so mesa-output/ || true
+          cp mesa/build/meson-logs/meson-log.txt mesa-output/ || true
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-libs
-          path: |
-            artifacts/mesa-turnip-arm64-winlator.zip
-            artifacts/*.so
-          if-no-files-found: warn
-
-      # 14) Upload logs
-      - name: Upload logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: mesa-turnip-logs
-          path: |
-            mesa/build/meson-logs/meson-log.txt
-          if-no-files-found: ignore
+          name: mesa-turnip-aarch64-build
+          path: mesa-output/
