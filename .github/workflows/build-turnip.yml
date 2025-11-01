@@ -5,28 +5,40 @@ on:
 
 jobs:
   build:
-    name: Build Turnip (Mesa Freedreno) for AArch64
     runs-on: ubuntu-22.04
+    name: Build Mesa Turnip (Freedreno)
 
     steps:
-      - name: Checkout source
+      # --- STEP 1: Checkout source (no submodules yet) ---
+      - name: Checkout repository without submodules
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
+          submodules: false
 
-      - name: Fix submodules with missing URL
+      # --- STEP 2: Remove broken submodule entry if it exists ---
+      - name: Fix invalid submodule references
         run: |
           if [ -f .gitmodules ]; then
-            echo "Checking for broken submodules..."
-            if ! grep -q "app/src/main/cpp/OpenXR-SDK" .gitmodules; then
-              echo "Removing broken OpenXR-SDK submodule entry..."
+            echo "Fixing broken submodules..."
+            grep "app/src/main/cpp/OpenXR-SDK" .gitmodules && {
+              echo "Removing invalid OpenXR-SDK submodule..."
+              git config -f .gitmodules --remove-section submodule."app/src/main/cpp/OpenXR-SDK" || true
               git rm --cached app/src/main/cpp/OpenXR-SDK || true
               rm -rf app/src/main/cpp/OpenXR-SDK || true
-            fi
+            }
+            # Clean up .gitmodules if now empty
+            [ ! -s .gitmodules ] && rm .gitmodules || true
           fi
+          git submodule sync --recursive || true
 
-      - name: Install base dependencies
+      # --- STEP 3: Re-initialize valid submodules ---
+      - name: Reinitialize valid submodules
+        run: |
+          git submodule update --init --recursive --depth=1 || true
+
+      # --- STEP 4: Install Mesa dependencies ---
+      - name: Install dependencies
         run: |
           sudo dpkg --add-architecture arm64
           sudo apt-get update -y
@@ -40,34 +52,22 @@ jobs:
             libxcb-present-dev:arm64 libxcb-sync-dev:arm64 libxshmfence-dev:arm64 \
             libxxf86vm-dev:arm64 libexpat1-dev:arm64 zlib1g-dev:arm64 \
             libdrm-dev:arm64 libwayland-dev:arm64 wayland-protocols \
-            llvm llvm-dev clang libclang-dev libelf-dev:arm64 \
-            spirv-tools
+            llvm llvm-dev clang libclang-dev libelf-dev:arm64 spirv-tools
 
+      # --- STEP 5: Upgrade Meson ---
       - name: Upgrade Meson to latest
         run: |
           pip install --upgrade meson==1.9.1 Mako
 
+      # --- STEP 6: Clone Mesa main branch ---
       - name: Clone Mesa main branch
         run: |
           git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
-          git submodule update --init --depth=1 --recursive
+          git submodule update --init --depth=1 --recursive || true
 
-      - name: Configure Mesa build (AArch64 Turnip)
-        working-directory: mesa
-        run: |
-          meson setup build \
-            --prefix=/usr/local \
-            --libdir=lib/aarch64-linux-gnu \
-            --cross-file cross_file.txt \
-            -Dgallium-drivers=freedreno,llvmpipe \
-            -Dvulkan-drivers=freedreno \
-            -Dplatforms=x11,wayland,android \
-            -Dllvm=true -Dshared-llvm=true \
-            -Dglx=dri -Dgles1=true -Dgles2=true -Dopengl=true \
-            -Dbuildtype=release
-
-      - name: Create cross-compilation file
+      # --- STEP 7: Create cross-compilation file ---
+      - name: Create cross compilation file
         working-directory: mesa
         run: |
           cat <<EOF > cross_file.txt
@@ -84,7 +84,23 @@ jobs:
           endian = 'little'
           EOF
 
-      - name: Build Mesa Turnip driver
+      # --- STEP 8: Configure Mesa ---
+      - name: Configure Mesa for Turnip
+        working-directory: mesa
+        run: |
+          meson setup build \
+            --prefix=/usr/local \
+            --libdir=lib/aarch64-linux-gnu \
+            --cross-file cross_file.txt \
+            -Dgallium-drivers=freedreno,llvmpipe \
+            -Dvulkan-drivers=freedreno \
+            -Dplatforms=x11,wayland,android \
+            -Dllvm=true -Dshared-llvm=true \
+            -Dglx=dri -Dgles1=true -Dgles2=true -Dopengl=true \
+            -Dbuildtype=release
+
+      # --- STEP 9: Build Mesa Turnip ---
+      - name: Build Turnip
         working-directory: mesa
         run: |
           meson compile -C build
@@ -93,17 +109,18 @@ jobs:
           find build -type f -name "libgallium*.so" -exec cp {} ../artifacts/ \; || true
           ls -lh ../artifacts || true
 
-      - name: Upload Turnip build artifacts
+      # --- STEP 10: Upload driver binaries ---
+      - name: Upload Turnip build
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-libs
           path: artifacts/*.so
           if-no-files-found: warn
 
+      # --- STEP 11: Upload logs ---
       - name: Upload build logs
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-logs
-          path: |
-            mesa/build/meson-logs/meson-log.txt
+          path: mesa/build/meson-logs/meson-log.txt
           if-no-files-found: ignore
