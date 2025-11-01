@@ -1,7 +1,7 @@
 name: Build Mesa Turnip (AArch64, Standalone)
 
 on:
-  workflow_dispatch:  # ✅ Allows manual "Run workflow" button
+  workflow_dispatch:  # ✅ Enables "Run workflow" button manually
 
 jobs:
   build:
@@ -9,20 +9,30 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository (without submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false  # ✅ prevent checkout failure
 
-      - name: Fix missing submodule URL (OpenXR-SDK)
+      - name: Fix or add OpenXR-SDK submodule
         run: |
-          if [ ! -f .gitmodules ] || ! grep -q "OpenXR-SDK" .gitmodules; then
-            echo "[submodule \"app/src/main/cpp/OpenXR-SDK\"]" >> .gitmodules
-            echo "  path = app/src/main/cpp/OpenXR-SDK" >> .gitmodules
-            echo "  url = https://github.com/KhronosGroup/OpenXR-SDK.git" >> .gitmodules
+          set -eux
+          # Create .gitmodules if missing
+          if [ ! -f .gitmodules ]; then
+            echo "# Auto-generated .gitmodules" > .gitmodules
           fi
+
+          # Add OpenXR-SDK if missing
+          if ! grep -q "app/src/main/cpp/OpenXR-SDK" .gitmodules; then
+            cat <<EOF >> .gitmodules
+[submodule "app/src/main/cpp/OpenXR-SDK"]
+  path = app/src/main/cpp/OpenXR-SDK
+  url = https://github.com/KhronosGroup/OpenXR-SDK.git
+EOF
+          fi
+
           git submodule sync --recursive
-          git submodule update --init --recursive --depth 1
+          git submodule update --init --recursive --depth 1 || true
 
       - name: Configure APT sources for AArch64 (jammy)
         run: |
@@ -40,7 +50,7 @@ jobs:
           deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
           EOF
           sudo apt-get clean
-          for i in 1 2 3; do sudo apt-get update && break || sleep 10; done
+          for i in 1 2 3; do sudo apt-get update && break || sleep 15; done
 
       - name: Install dependencies
         run: |
@@ -85,7 +95,7 @@ jobs:
           cd mesa/build
           ninja -v
 
-      - name: List build output
+      - name: List built output
         run: |
           cd mesa/build
           find . -type f -name "*.so" || true
