@@ -1,7 +1,12 @@
+# ==========================================================
+#  GitHub Actions Workflow: Build Mesa Turnip for Winlator
+#  Supports manual trigger via "Run workflow" button
+# ==========================================================
+
 name: Build Mesa Turnip (AArch64, Standalone)
 
 on:
-  workflow_dispatch:  # ✅ Enables "Run workflow" button manually
+  workflow_dispatch: {}   # ✅ enables the "Run workflow" button
 
 jobs:
   build:
@@ -9,20 +14,20 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repository (without submodules)
+      - name: Checkout repository (no submodules)
         uses: actions/checkout@v4
         with:
-          submodules: false  # ✅ prevent checkout failure
+          submodules: false  # ✅ avoid submodule URL errors
 
       - name: Fix or add OpenXR-SDK submodule
         run: |
           set -eux
-          # Create .gitmodules if missing
+          # Ensure .gitmodules exists
           if [ ! -f .gitmodules ]; then
             echo "# Auto-generated .gitmodules" > .gitmodules
           fi
 
-          # Add OpenXR-SDK if missing
+          # Add OpenXR-SDK submodule if missing
           if ! grep -q "app/src/main/cpp/OpenXR-SDK" .gitmodules; then
             cat <<EOF >> .gitmodules
 [submodule "app/src/main/cpp/OpenXR-SDK"]
@@ -34,25 +39,25 @@ EOF
           git submodule sync --recursive
           git submodule update --init --recursive --depth 1 || true
 
-      - name: Configure APT sources for AArch64 (jammy)
+      - name: Configure APT sources for AArch64 (Jammy)
         run: |
           set -eux
           sudo dpkg --add-architecture arm64
           sudo mv /etc/apt/sources.list /etc/apt/sources.list.backup
           cat <<'EOF' | sudo tee /etc/apt/sources.list
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
-          EOF
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+EOF
           sudo apt-get clean
           for i in 1 2 3; do sudo apt-get update && break || sleep 15; done
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get install -y \
             ninja-build meson python3-pip python3-setuptools python3-mako \
@@ -78,7 +83,7 @@ EOF
             --libdir=lib/aarch64-linux-gnu \
             --buildtype=release \
             -Dplatforms=x11,wayland \
-            -Dgallium-drivers=swrast \
+            -Dgallium-drivers=llvmpipe \
             -Dvulkan-drivers=freedreno \
             -Dllvm=enabled \
             -Dshared-llvm=enabled \
@@ -87,20 +92,14 @@ EOF
             -Dgles2=enabled \
             -Dopengl=true \
             -Dvulkan-layers=device-select \
-            -Dbuildtype=release \
             ..
 
-      - name: Build Mesa (Turnip)
+      - name: Build Mesa Turnip
         run: |
           cd mesa/build
           ninja -v
 
-      - name: List built output
-        run: |
-          cd mesa/build
-          find . -type f -name "*.so" || true
-
-      - name: Upload built Turnip driver
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-aarch64
