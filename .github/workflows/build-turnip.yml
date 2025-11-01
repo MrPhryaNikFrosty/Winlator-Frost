@@ -1,114 +1,109 @@
-name: Build Turnip Vulkan Driver (AArch64, Winlator-Compatible)
+name: Build Turnip Vulkan Driver for AArch64 (Winlator-Compatible)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_turnip:
-    name: 🧩 Build Mesa Turnip (AArch64)
+  build:
+    name: Build Turnip (Mesa Freedreno) for AArch64
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
         with:
-          submodules: false
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Fix APT sources (avoid 404)
+      - name: Fix submodules with missing URL
         run: |
-          sudo sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
-          sudo sed -i 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
-          sudo apt-get clean
+          if [ -f .gitmodules ]; then
+            echo "Checking for broken submodules..."
+            if ! grep -q "app/src/main/cpp/OpenXR-SDK" .gitmodules; then
+              echo "Removing broken OpenXR-SDK submodule entry..."
+              git rm --cached app/src/main/cpp/OpenXR-SDK || true
+              rm -rf app/src/main/cpp/OpenXR-SDK || true
+            fi
+          fi
+
+      - name: Install base dependencies
+        run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-setuptools python3-wheel \
+            ninja-build cmake git pkg-config wget unzip \
+            build-essential crossbuild-essential-arm64 \
+            bison flex gettext \
+            libx11-dev:arm64 libxext-dev:arm64 libxdamage-dev:arm64 libxfixes-dev:arm64 \
+            libxcb-glx0-dev:arm64 libxcb-dri2-0-dev:arm64 libxcb-dri3-dev:arm64 \
+            libxcb-present-dev:arm64 libxcb-sync-dev:arm64 libxshmfence-dev:arm64 \
+            libxxf86vm-dev:arm64 libexpat1-dev:arm64 zlib1g-dev:arm64 \
+            libdrm-dev:arm64 libwayland-dev:arm64 wayland-protocols \
+            llvm llvm-dev clang libclang-dev libelf-dev:arm64 \
+            spirv-tools
 
-      - name: Install dependencies
+      - name: Upgrade Meson to latest
         run: |
-          sudo apt-get install -y \
-            build-essential python3 python3-pip python3-mako python3-numpy \
-            python3-setuptools python3-wheel pkg-config ninja-build meson \
-            git wget curl zip unzip cmake bison flex libx11-dev libxext-dev \
-            libxdamage-dev libxfixes-dev libxcb-glx0-dev libxcb-dri2-0-dev \
-            libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev libxshmfence-dev \
-            libxrandr-dev libwayland-dev wayland-protocols libdrm-dev \
-            libexpat1-dev libelf-dev llvm clang libclc-dev spirv-tools \
-            libvulkan-dev libomxil-bellagio-dev libtinfo5 libzstd-dev \
-            zlib1g-dev libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev \
-            libxcb-shape0-dev libxcb-xfixes0-dev libxcb-icccm4-dev \
-            libxcb-render-util0-dev libxcb-image0-dev libxcb-cursor-dev
+          pip install --upgrade meson==1.9.1 Mako
 
-      - name: Upgrade Meson to latest (≥1.4)
+      - name: Clone Mesa main branch
         run: |
-          sudo pip install --upgrade meson ninja mako
-
-      - name: Clone Mesa (main branch)
-        run: |
-          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
           cd mesa
-          git submodule update --init --depth=1
+          git submodule update --init --depth=1 --recursive
 
-      - name: Configure Mesa for Turnip (AArch64)
+      - name: Configure Mesa build (AArch64 Turnip)
+        working-directory: mesa
         run: |
-          cd mesa
-          mkdir -p build
           meson setup build \
-            --buildtype=release \
             --prefix=/usr/local \
-            -Dplatforms=x11,wayland \
-            -Dvulkan-drivers=freedreno \
+            --libdir=lib/aarch64-linux-gnu \
+            --cross-file cross_file.txt \
             -Dgallium-drivers=freedreno,llvmpipe \
-            -Dllvm=true \
-            -Dshared-llvm=true \
-            -Dgles1=true \
-            -Dgles2=true \
-            -Dopengl=true \
-            -Dglx=dri
+            -Dvulkan-drivers=freedreno \
+            -Dplatforms=x11,wayland,android \
+            -Dllvm=true -Dshared-llvm=true \
+            -Dglx=dri -Dgles1=true -Dgles2=true -Dopengl=true \
+            -Dbuildtype=release
 
-      - name: Build Mesa Turnip
+      - name: Create cross-compilation file
+        working-directory: mesa
         run: |
-          cd mesa/build
-          ninja -j$(nproc)
+          cat <<EOF > cross_file.txt
+          [binaries]
+          c = '/usr/bin/aarch64-linux-gnu-gcc'
+          cpp = '/usr/bin/aarch64-linux-gnu-g++'
+          ar = '/usr/bin/aarch64-linux-gnu-ar'
+          strip = '/usr/bin/aarch64-linux-gnu-strip'
+          pkgconfig = '/usr/bin/pkg-config'
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+          EOF
 
-      - name: Package Mesa Turnip Libraries
+      - name: Build Mesa Turnip driver
+        working-directory: mesa
         run: |
-          mkdir -p mesa-out/lib/aarch64-linux-gnu
-          sudo cp -r /usr/local/lib/aarch64-linux-gnu/* mesa-out/lib/aarch64-linux-gnu/ || true
-          zip -r mesa-turnip-libs-aarch64.zip mesa-out
-          echo "Build completed successfully!"
+          meson compile -C build
+          mkdir -p ../artifacts
+          find build -type f -name "libvulkan_freedreno.so" -exec cp {} ../artifacts/ \; || true
+          find build -type f -name "libgallium*.so" -exec cp {} ../artifacts/ \; || true
+          ls -lh ../artifacts || true
 
-      - name: Upload Mesa Artifacts
+      - name: Upload Turnip build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-turnip-libs-aarch64
-          path: mesa-turnip-libs-aarch64.zip
+          name: mesa-turnip-libs
+          path: artifacts/*.so
+          if-no-files-found: warn
 
-  build_winlator_apk:
-    name: 📱 Build Standalone Winlator APK
-    runs-on: ubuntu-22.04
-    needs: build_turnip
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Mesa Turnip libs
-        uses: actions/download-artifact@v4
-        with:
-          name: mesa-turnip-libs-aarch64
-          path: mesa-libs
-
-      - name: Prepare Android SDK/NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle wrapper
-        run: |
-          chmod +x gradlew
-
-      - name: Build Winlator-compatible APK
-        run: |
-          ./gradlew assembleRelease
-
-      - name: Upload APK artifact
+      - name: Upload build logs
         uses: actions/upload-artifact@v4
         with:
-          name: winlator-standalone-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: mesa-turnip-logs
+          path: |
+            mesa/build/meson-logs/meson-log.txt
+          if-no-files-found: ignore
