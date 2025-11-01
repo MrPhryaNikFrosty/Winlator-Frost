@@ -7,7 +7,6 @@ jobs:
   build_turnip:
     name: Build Mesa Turnip (AArch64)
     runs-on: ubuntu-22.04
-    timeout-minutes: 240
 
     steps:
       # 1) Checkout WITHOUT submodules (avoid auto init errors)
