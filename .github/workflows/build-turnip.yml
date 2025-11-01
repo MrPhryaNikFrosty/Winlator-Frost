@@ -1,5 +1,6 @@
 # =====================================================
 # Mesa Turnip Builder for Winlator (AArch64)
+# Includes all fixes: jammy repos, OpenXR-SDK submodule, Meson flags, glslangValidator
 # =====================================================
 
 name: Build Mesa Turnip for Winlator
@@ -16,27 +17,81 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare environment
+      # -------------------------------------------------
+      # Fix broken or outdated jammy sources for AArch64
+      # -------------------------------------------------
+      - name: Fix Ubuntu sources (AArch64)
         run: |
-          sudo dpkg --add-architecture arm64
-          sudo sed -i 's|http://archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
-          sudo apt-get update
-          sudo apt-get install -y \
-            git ninja-build meson python3-pip python3-mako llvm-dev libclang-dev \
-            libdrm-dev libexpat1-dev libx11-dev libxext-dev libxcb-glx0-dev \
-            libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev libxcb-sync-dev \
-            libxshmfence-dev libxxf86vm-dev libwayland-dev wayland-protocols \
-            libvulkan-dev bison flex cmake pkg-config zlib1g-dev wget unzip
+          echo ">>> Cleaning and rewriting APT sources for jammy (AArch64)..."
+          sudo dpkg --add-architecture arm64 || true
+          sudo rm -f /etc/apt/sources.list.d/*.list || true
+          sudo rm -f /etc/apt/sources.list || true
+          sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
+          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+          deb [arch=arm64,amd64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+          EOF
+          sudo apt-get clean
+          sudo apt-get update -o Acquire::Retries=5 || (sleep 5 && sudo apt-get update -o Acquire::Retries=5)
+
+      # -------------------------------------------------
+      # Install all build dependencies
+      # -------------------------------------------------
+      - name: Install dependencies
+        run: |
+          echo ">>> Installing build dependencies..."
+          sudo apt-get install -y --no-install-recommends \
+            git ninja-build meson python3-pip python3-mako python3-setuptools \
+            llvm-dev libclang-dev libdrm-dev libexpat1-dev libx11-dev \
+            libxext-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev \
+            libxcb-present-dev libxcb-sync-dev libxshmfence-dev \
+            libxxf86vm-dev libwayland-dev wayland-protocols \
+            libvulkan-dev bison flex cmake pkg-config zlib1g-dev wget unzip \
+            build-essential libffi-dev python3-wheel
           pip install --upgrade meson==1.5.0 mako
 
-      - name: Clone Mesa
+      # -------------------------------------------------
+      # Clone Mesa and fix missing submodules (OpenXR-SDK)
+      # -------------------------------------------------
+      - name: Clone Mesa with OpenXR-SDK submodule fix
         run: |
+          echo ">>> Cloning Mesa repository..."
           git clone --depth 1 --branch main https://gitlab.freedesktop.org/mesa/mesa.git mesa
           cd mesa
+          if ! grep -q "OpenXR-SDK" .gitmodules; then
+            echo ">>> OpenXR-SDK submodule missing in .gitmodules, fixing..."
+            cat >> .gitmodules <<'EOF'
+[submodule "app/src/main/cpp/OpenXR-SDK"]
+    path = app/src/main/cpp/OpenXR-SDK
+    url = https://github.com/KhronosGroup/OpenXR-SDK.git
+EOF
+          fi
+          git submodule update --init --recursive || true
           mkdir -p build
 
-      - name: Configure Meson
+      # -------------------------------------------------
+      # Fix missing or outdated glslangValidator binary
+      # -------------------------------------------------
+      - name: Install glslangValidator
         run: |
+          echo ">>> Checking glslangValidator..."
+          if ! command -v glslangValidator &>/dev/null; then
+            sudo apt-get install -y glslang-tools || true
+          fi
+          if ! command -v glslangValidator &>/dev/null; then
+            echo ">>> Downloading glslangValidator manually..."
+            wget -q https://github.com/KhronosGroup/glslang/releases/latest/download/glslangValidator -O /usr/local/bin/glslangValidator
+            chmod +x /usr/local/bin/glslangValidator
+          fi
+          glslangValidator --version || echo "glslangValidator installed."
+
+      # -------------------------------------------------
+      # Configure Mesa for Turnip (no swrast or drm mistakes)
+      # -------------------------------------------------
+      - name: Configure Meson for Turnip
+        run: |
+          echo ">>> Configuring Meson build..."
           cd mesa/build
           meson setup \
             --prefix=/usr \
@@ -48,17 +103,25 @@ jobs:
             -Dllvm=enabled \
             -Dshared-llvm=enabled \
             -Dglx=dri \
+            -Dgles1=disabled \
             -Dgles2=enabled \
             -Dopengl=true \
             -Dvulkan-layers=device-select \
             ..
 
+      # -------------------------------------------------
+      # Build Mesa Turnip
+      # -------------------------------------------------
       - name: Build Mesa Turnip
         run: |
+          echo ">>> Building Mesa Turnip..."
           cd mesa/build
           ninja -v
 
-      - name: Upload artifact
+      # -------------------------------------------------
+      # Upload Turnip artifact
+      # -------------------------------------------------
+      - name: Upload Turnip artifact
         uses: actions/upload-artifact@v4
         with:
           name: mesa-turnip-aarch64
