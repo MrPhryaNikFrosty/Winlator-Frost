@@ -1,0 +1,152 @@
+name: Build GStmangohudRootFS for Winlator
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      inputGstVersion:
+        description: "GStreamer version"
+        required: true
+        default: "1.27.2"
+      inputXzVersion:
+        description: "XZ version"
+        required: true
+        default: "v5.8.1"
+      inputLibxkbcommonVersion:
+        description: "libxkbcommon version"
+        required: true
+        default: "xkbcommon-1.7.0"
+      inputMangoHudVersion:
+        description: "MangoHud version"
+        required: true
+        default: "v0.7.1"
+      inputCustomTag:
+        description: "Custom tag name"
+        required: true
+        default: "beta11-g2.39"
+
+env:
+  gstVer: ${{ github.event.inputs.inputGstVersion }}
+  xzVer: ${{ github.event.inputs.inputXzVersion }}
+  libxkbcommonVer: ${{ github.event.inputs.inputLibxkbcommonVersion }}
+  mangohudVer: ${{ github.event.inputs.inputMangoHudVersion }}
+  customTag: ${{ github.event.inputs.inputCustomTag }}
+
+jobs:
+  build-rootfs2:
+    runs-on: ubuntu-24.04-arm
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            arch-bootstrap.sh
+            build-rootfs2.sh
+            data.tar.xz
+            tzdata-2025b-1-aarch64.pkg.tar.xz
+
+      - name: Setup chroot environment
+        run: |
+          sudo apt update
+          sudo apt install -y coreutils curl sed gawk tar gzip xz-utils zstd patchelf
+          
+          chmod +x arch-bootstrap.sh
+          sudo cp arch-bootstrap.sh /usr/local/bin/arch-bootstrap
+          
+          cd /tmp
+          sudo arch-bootstrap -a aarch64 archlinux
+
+      - name: Install build dependencies in chroot
+        run: |
+          cat > /tmp/install-deps.sh << 'EOF'
+          #!/bin/bash
+          pacman -Syu --noconfirm
+          pacman-key --init
+          pacman -S --noconfirm --needed \
+            base-devel \
+            ninja \
+            meson \
+            git \
+            glib2-devel \
+            libx11 \
+            mesa \
+            libpulse \
+            vulkan-devel \
+            nasm \
+            yasm \
+            glslang \
+            cmake \
+            patchelf \
+            libde265 \
+            wget \
+            ca-certificates \
+            libdrm \
+            dbus \
+            python3 \
+            python-mako \
+            glm \
+            nlohmann-json \
+            libxcb \
+            xorgproto \
+            wayland \
+            wayland-protocols \
+            libglvnd \
+            libxrandr \
+            libxinerama \
+            libxdamage \
+            libxfixes
+          exit 0
+          EOF
+          
+          sudo chmod +x /tmp/install-deps.sh
+          sudo cp /tmp/install-deps.sh /tmp/archlinux/
+          
+          sudo mount --bind /proc /tmp/archlinux/proc
+          sudo mount --bind /sys /tmp/archlinux/sys
+          sudo mount --bind /dev /tmp/archlinux/dev
+          
+          sudo chroot /tmp/archlinux /install-deps.sh
+          
+          sudo rm /tmp/archlinux/install-deps.sh
+
+      - name: Prepare build files in chroot
+        run: |
+          sudo cp build-rootfs2.sh /tmp/archlinux/tmp/
+          sudo cp data.tar.xz /tmp/archlinux/tmp/
+          sudo cp tzdata-2025b-1-aarch64.pkg.tar.xz /tmp/archlinux/tmp/
+          
+          cat > /tmp/init.sh << EOF
+          export gstVer=$gstVer
+          export xzVer=$xzVer
+          export libxkbcommonVer=$libxkbcommonVer
+          export mangohudVer=$mangohudVer
+          export customTag=$customTag
+          EOF
+          
+          sudo cp /tmp/init.sh /tmp/archlinux/tmp/
+          sudo chmod +x /tmp/archlinux/tmp/build-rootfs2.sh
+
+      - name: Build rootfs with GStreamer, libxkbcommon and MangoHud
+        run: |
+          sudo chroot /tmp/archlinux /tmp/build-rootfs2.sh
+          
+          sudo umount -l /tmp/archlinux/dev
+          sudo umount -l /tmp/archlinux/sys
+          sudo umount -l /tmp/archlinux/proc
+
+      - name: Upload RootFS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rootfs-${{ github.event.inputs.inputCustomTag }}
+          path: |
+            /tmp/archlinux/tmp/output/output-lite.tar.xz
+            /tmp/archlinux/tmp/output/output-full.tar.xz
+            /tmp/archlinux/tmp/output/rootfs.tzst
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo rm -rf /tmp/archlinux
