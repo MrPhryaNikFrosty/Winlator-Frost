@@ -1,4 +1,4 @@
-name: Build Box64 (Winlator)
+name: Build Box64 (Android / Winlator)
 
 on:
   workflow_dispatch:
@@ -11,98 +11,125 @@ on:
   pull_request:
 
 permissions:
-  contents: write  # Allow GITHUB_TOKEN to create a release
+  contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_NDK_VERSION: "r26b"          # using NDK r26b to match box64/CI notes
+      ANDROID_ABI: "arm64-v8a"
+      CMAKE_BUILD_TYPE: "Release"
 
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Install host packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          cmake build-essential \
-          gcc git patchelf xz-utils
+        sudo apt-get install -y cmake build-essential git patchelf xz-utils unzip python3
 
-    - name: Set Box64 version
+    - name: Download Android NDK (r26b)
+      run: |
+        set -e
+        NDKVER="${{ env.ANDROID_NDK_VERSION }}"
+        # pick archive for linux-x86_64 (CI host)
+        NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDKVER}-linux.zip"
+        echo "Downloading NDK from: $NDK_URL"
+        wget -q --show-progress "$NDK_URL" -O ndk.zip
+        unzip -q ndk.zip
+        # unzips to android-ndk-$NDKVER
+        export ANDROID_NDK_HOME="$PWD/android-ndk-${NDKVER}"
+        echo "ANDROID_NDK_HOME=$PWD/android-ndk-${NDKVER}" >> $GITHUB_ENV
+        ls -la "$PWD/android-ndk-${NDKVER}" | sed -n '1,20p'
+
+    - name: Set Box64 version env
       id: set_version
       run: |
-        # If triggered manually (workflow_dispatch), use input parameter
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           echo "BOX64_REF=${{ github.event.inputs.box64_version }}" >> $GITHUB_ENV
         else
-          # For PR events, use the default version
           echo "BOX64_REF=main" >> $GITHUB_ENV
         fi
         echo "Using Box64 version: $BOX64_REF"
 
-    - name: Clone the specified Box64 version
+    - name: Clone box64
       run: |
-        git clone https://github.com/ptitSeb/box64
+        git clone https://github.com/ptitSeb/box64 box64
         cd box64
-        
-        # Checkout the specified version
-        echo "Checking out version: $BOX64_REF"
-        git checkout $BOX64_REF
-        
-        # If it's a branch, pull the latest changes
-        if git show-ref --verify --quiet refs/heads/$BOX64_REF; then
-          echo "Checked out branch $BOX64_REF, pulling latest changes"
-          git pull origin $BOX64_REF
+        git fetch --all --tags
+        if git rev-parse --verify --quiet "$BOX64_REF" >/dev/null; then
+          git checkout "$BOX64_REF"
+        else
+          # try to checkout tags or branches gracefully
+          git checkout --detach "$BOX64_REF" || git checkout origin/"$BOX64_REF" || true
         fi
+        echo "Checked out $(git rev-parse --short HEAD)"
 
-    - name: Get version and date info
-      id: version_info
+    - name: Get version info
       run: |
         cd box64
-        # Get detailed version info
         BOX64_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
         BUILD_DATE=$(date +%Y%m%d)
-        COMMIT_HASH=$(git rev-parse --short HEAD)
-        BRANCH_OR_TAG=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2>/dev/null || echo "detached-$COMMIT_HASH")
-        
         echo "BOX64_VERSION=$BOX64_VERSION" >> $GITHUB_ENV
         echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-        echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
-        echo "BRANCH_OR_TAG=$BRANCH_OR_TAG" >> $GITHUB_ENV
-        
-        echo "Box64 version: $BOX64_VERSION"
-        echo "Build date: $BUILD_DATE"
-        echo "Commit hash: $COMMIT_HASH"
-        echo "Branch or tag: $BRANCH_OR_TAG"
+        echo "Built: $BOX64_VERSION on $BUILD_DATE"
 
-    - name: Configure build
+    - name: Configure CMake for Android
       run: |
+        set -e
         cd box64
-        mkdir -p build
-        cd build
-        echo "Starting CMake configuration..."
-        cmake .. -DARM_DYNAREC=ON -DCMAKE_BUILD_TYPE=Release
-        echo "CMake configuration completed."
+        mkdir -p build-android && cd build-android
+        # Use the Android toolchain from the downloaded NDK
+        cmake .. \
+          -DANDROID=ON \
+          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+          -DCMAKE_ANDROID_NDK=${{ env.ANDROID_NDK_HOME }} \
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.ANDROID_NDK_HOME }}/build/cmake/android.toolchain.cmake \
+          -DARM_DYNAREC=ON \
+          -DCMAKE_ANDROID_ARCH_ABI=${{ env.ANDROID_ABI }} \
+          -DCMAKE_ANDROID_STL_TYPE=c++_static \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DPLATFORM=android
 
-    - name: Compile Box64
+    - name: Compile Box64 (Android)
       run: |
-        cd box64/build
-        echo "Compiling Box64..."
-        make -j$(nproc)
-        echo "Box64 compilation completed."
+        set -e
+        cd box64/build-android
+        make -j$(nproc) || (cat CMakeFiles/CMakeError.log || true; exit 1)
 
-    - name: Package build
+    - name: Fix interpreter & strip
       run: |
-        cd box64/build
-        mkdir -p ../../artifacts
-        cp box64 ../../artifacts/
-        cd ../../artifacts
+        set -e
+        cd box64/build-android
+        # box64 binary should be at ./box64 (verify)
+        if [ ! -f box64 ]; then
+          echo "ERROR: box64 binary not found after build" >&2
+          ls -l
+          exit 2
+        fi
+        # Ensure we use the Android linker as interpreter (required for Android container execution)
+        # Common Android linker path for aarch64 is /system/bin/linker64
+        patchelf --set-interpreter /system/bin/linker64 box64 || echo "patchelf set-interpreter failed, continue"
+        # Optionally strip symbols to reduce size
+        "${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip" --strip-unneeded box64 || true
+        file box64
+        ./box64 --version || true
+
+    - name: Package artifact
+      run: |
+        set -e
+        cd box64
+        mkdir -p ../artifacts
+        cp build-android/box64 ../artifacts/ || true
+        cd ../artifacts
         tar -czvf box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.gz box64
-        echo "Packaging completed: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.gz"
+        echo "Packaged artifacts: $(ls -l)"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}
         path: artifacts/*.tar.gz
-        
