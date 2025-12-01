@@ -1,112 +1,73 @@
-name: Build Box64 for Winlator
+name: Build Box64 For Winlator Frost
 
 on:
   workflow_dispatch:
-    inputs:
-      box64_version:
-        description: 'Box64 version (branch, tag, or commit hash)'
-        required: true
-        default: 'main'
-        type: string
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout
       uses: actions/checkout@v4
 
-    # --- Auto-detect Winlator’s NDK version (Choice C) ---
-    - name: Determine NDK version from Winlator source
-      id: ndkver
+    - name: Install Dependencies
       run: |
-        # Default use r26b if detection fails
-        NDK_VERSION="r26b"
+        sudo apt update
+        sudo apt install -y ninja-build cmake git build-essential
 
-        # Try detect from Winlator official repo
-        git clone --depth=1 https://github.com/brunodev85/winlator winlator-src
-
-        # If repo contains toolchain config, extract
-        if grep -R "android-ndk-r" -n winlator-src 2>/dev/null; then
-          DETECTED=$(grep -R "android-ndk-r" -n winlator-src | head -n 1 | sed 's/.*android-ndk-//;s/[^0-9a-zA-Z].*//')
-          if [ ! -z "$DETECTED" ]; then
-            NDK_VERSION="$DETECTED"
-          fi
-        fi
-
-        echo "NDK_VERSION=$NDK_VERSION" >> $GITHUB_ENV
-        echo "Using Android NDK: $NDK_VERSION"
-
-    # --- Download NDK ---
     - name: Download Android NDK
       run: |
-        cd $HOME
-        wget https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
-        unzip android-ndk-${NDK_VERSION}-linux.zip
-        mv android-ndk-${NDK_VERSION} android-ndk
-
+        wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+        unzip android-ndk-r26d-linux.zip
+        mv android-ndk-r26d $HOME/android-ndk
         echo "ANDROID_NDK_HOME=$HOME/android-ndk" >> $GITHUB_ENV
 
-    # --- Clone Box64 source ---
-    - name: Clone Box64 source
+    - name: Clone Box64
       run: |
-        git clone https://github.com/ptitSeb/box64.git box64
+        git clone https://github.com/ptitSeb/box64.git
         cd box64
-        git checkout ${{ github.event.inputs.box64_version }}
+        git checkout master
 
-    # --- Install build dependencies ---
-    - name: Install dependencies
+    - name: Apply Android Patch (Fix fseeko64 + dlvsym + int128)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y ninja-build cmake build-essential patchelf
+        cd box64/src/elfs
 
-    # --- Configure and Build Box64 for Android ARM64 ---
-    - name: Build Box64 (Android ARM64)
+        # Fix missing fseeko64()
+        sed -i 's/fseeko64/fseeko/g' elfloader.c
+
+        # Remove dlvsym() usage — Android does not support versioned symbols
+        sed -i 's/dlvsym/dlsym/g' elfloader.c
+
+        # Ensure no leftover implicit dlvsym prototype
+        sed -i 's/.*dlvsym.*//g' elfloader.c
+
+        # Ensure missing __int128 is not used anywhere else (Android safe)
+        cd ..
+        grep -rl "__int128" . | xargs sed -i 's/__int128/long long/g'
+
+    - name: Configure Box64
       run: |
-        export ANDROID_NDK_HOME=$HOME/android-ndk
-        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
-
         cd box64
-        rm -rf build-android
-        mkdir build-android
-        cd build-android
+        cmake -B build \
+            -G Ninja \
+            -DCMAKE_SYSTEM_NAME=Android \
+            -DCMAKE_ANDROID_NDK=$ANDROID_NDK_HOME \
+            -DCMAKE_SYSTEM_VERSION=21 \
+            -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
+            -DCMAKE_ANDROID_STL_TYPE=none \
+            -DANDROID=1 \
+            -DARM64=1 \
+            -DDYNAREC=1 \
+            -DCMAKE_BUILD_TYPE=Release
 
-        cmake .. \
-          -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DANDROID=ON \
-          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-          -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=21 \
-          -DCMAKE_C_COMPILER=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
-          -DCMAKE_CXX_COMPILER=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
-          -DARM_DYNAREC=ON \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DPLATFORM=android
-
+    - name: Build Box64
+      run: |
+        cd box64/build
         ninja -j$(nproc)
 
-    # --- Apply Winlator linker path fix ---
-    - name: Patch ELF interpreter for Winlator
-      run: |
-        cd box64/build-android
-        patchelf --set-interpreter /system/bin/linker64 box64 || true
-
-    # --- Package artifact ---
-    - name: Package Box64
-      run: |
-        mkdir -p artifacts
-        cp box64/build-android/box64 artifacts/
-        cd artifacts
-        tar -czvf box64-android-${{ github.event.inputs.box64_version }}.tar.gz box64
-
-    # --- Upload artifact ---
-    - name: Upload artifact
+    - name: Upload Result
       uses: actions/upload-artifact@v4
       with:
-        name: box64-android-${{ github.event.inputs.box64_version }}
-        path: artifacts/*.tar.gz
+        name: box64-android-build
+        path: box64/build/box64
