@@ -1,135 +1,59 @@
-name: Build Box64 (Android / Winlator)
+name: Build Box64 for Android (Fixed)
 
 on:
   workflow_dispatch:
-    inputs:
-      box64_version:
-        description: 'Box64 version (branch, tag, or commit hash)'
-        required: true
-        default: 'main'
-        type: string
-  pull_request:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_NDK_VERSION: "r26b"          # using NDK r26b to match box64/CI notes
-      ANDROID_ABI: "arm64-v8a"
-      CMAKE_BUILD_TYPE: "Release"
-
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install host packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential git patchelf xz-utils unzip python3
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ninja-build zip
 
-    - name: Download Android NDK (r26b)
-      run: |
-        set -e
-        NDKVER="${{ env.ANDROID_NDK_VERSION }}"
-        # pick archive for linux-x86_64 (CI host)
-        NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDKVER}-linux.zip"
-        echo "Downloading NDK from: $NDK_URL"
-        wget -q --show-progress "$NDK_URL" -O ndk.zip
-        unzip -q ndk.zip
-        # unzips to android-ndk-$NDKVER
-        export ANDROID_NDK_HOME="$PWD/android-ndk-${NDKVER}"
-        echo "ANDROID_NDK_HOME=$PWD/android-ndk-${NDKVER}" >> $GITHUB_ENV
-        ls -la "$PWD/android-ndk-${NDKVER}" | sed -n '1,20p'
+      - name: Download Android NDK
+        run: |
+          wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+          unzip -q android-ndk-r26d-linux.zip
+          mv android-ndk-r26d $HOME/android-ndk
 
-    - name: Set Box64 version env
-      id: set_version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "BOX64_REF=${{ github.event.inputs.box64_version }}" >> $GITHUB_ENV
-        else
-          echo "BOX64_REF=main" >> $GITHUB_ENV
-        fi
-        echo "Using Box64 version: $BOX64_REF"
+      - name: Configure and build Box64
+        run: |
+          export ANDROID_NDK_HOME=$HOME/android-ndk
+          export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
 
-    - name: Clone box64
-      run: |
-        git clone https://github.com/ptitSeb/box64 box64
-        cd box64
-        git fetch --all --tags
-        if git rev-parse --verify --quiet "$BOX64_REF" >/dev/null; then
-          git checkout "$BOX64_REF"
-        else
-          # try to checkout tags or branches gracefully
-          git checkout --detach "$BOX64_REF" || git checkout origin/"$BOX64_REF" || true
-        fi
-        echo "Checked out $(git rev-parse --short HEAD)"
+          rm -rf build-android
+          mkdir build-android
+          cd build-android
 
-    - name: Get version info
-      run: |
-        cd box64
-        BOX64_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-        BUILD_DATE=$(date +%Y%m%d)
-        echo "BOX64_VERSION=$BOX64_VERSION" >> $GITHUB_ENV
-        echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-        echo "Built: $BOX64_VERSION on $BUILD_DATE"
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DANDROID=ON \
+            -DCMAKE_ANDROID_NDK=$ANDROID_NDK_HOME \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=21 \
+            -DCMAKE_C_COMPILER=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
+            -DCMAKE_CXX_COMPILER=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
+            -DARM_DYNAREC=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DPLATFORM=android
 
-    - name: Configure CMake for Android
-      run: |
-        set -e
-        cd box64
-        mkdir -p build-android && cd build-android
-        # Use the Android toolchain from the downloaded NDK
-        cmake .. \
-          -DANDROID=ON \
-          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
-          -DCMAKE_ANDROID_NDK=${{ env.ANDROID_NDK_HOME }} \
-          -DCMAKE_TOOLCHAIN_FILE=${{ env.ANDROID_NDK_HOME }}/build/cmake/android.toolchain.cmake \
-          -DARM_DYNAREC=ON \
-          -DCMAKE_ANDROID_ARCH_ABI=${{ env.ANDROID_ABI }} \
-          -DCMAKE_ANDROID_STL_TYPE=c++_static \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DPLATFORM=android
+          ninja -j$(nproc)
 
-    - name: Compile Box64 (Android)
-      run: |
-        set -e
-        cd box64/build-android
-        make -j$(nproc) || (cat CMakeFiles/CMakeError.log || true; exit 1)
+      - name: Package artifacts
+        run: |
+          cd build-android
+          zip -r box64-android.zip .
 
-    - name: Fix interpreter & strip
-      run: |
-        set -e
-        cd box64/build-android
-        # box64 binary should be at ./box64 (verify)
-        if [ ! -f box64 ]; then
-          echo "ERROR: box64 binary not found after build" >&2
-          ls -l
-          exit 2
-        fi
-        # Ensure we use the Android linker as interpreter (required for Android container execution)
-        # Common Android linker path for aarch64 is /system/bin/linker64
-        patchelf --set-interpreter /system/bin/linker64 box64 || echo "patchelf set-interpreter failed, continue"
-        # Optionally strip symbols to reduce size
-        "${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip" --strip-unneeded box64 || true
-        file box64
-        ./box64 --version || true
-
-    - name: Package artifact
-      run: |
-        set -e
-        cd box64
-        mkdir -p ../artifacts
-        cp build-android/box64 ../artifacts/ || true
-        cd ../artifacts
-        tar -czvf box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.gz box64
-        echo "Packaged artifacts: $(ls -l)"
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}
-        path: artifacts/*.tar.gz
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: box64-android
+          path: build-android/box64-android.zip
