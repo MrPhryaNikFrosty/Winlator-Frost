@@ -27,7 +27,7 @@ jobs:
       run: |
         git clone https://github.com/ptitSeb/box64.git
         cd box64
-        git checkout master
+        git checkout main
 
     - name: Apply Android Patch (Fix fseeko64 + dlvsym + int128)
       run: |
