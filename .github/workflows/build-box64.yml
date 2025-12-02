@@ -1,73 +1,112 @@
-name: Build Box64 For Winlator Frost
+name: Build Box64 (winlator)
 
 on:
   workflow_dispatch:
+    inputs:
+      box64_version:
+        description: 'Box64 Version (branch, tag, or commit hash)'
+        required: true
+        default: 'main'
+        type: string
+  pull_request:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
-    - name: Checkout
+    - name: Checkout source code
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
-        sudo apt update
-        sudo apt install -y ninja-build cmake git build-essential
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake build-essential \
+          gcc git patchelf xz-utils
 
-    - name: Download Android NDK
+    - name: Set Box64 Version
+      id: set_version
       run: |
-        wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
-        unzip android-ndk-r26d-linux.zip
-        mv android-ndk-r26d $HOME/android-ndk
-        echo "ANDROID_NDK_HOME=$HOME/android-ndk" >> $GITHUB_ENV
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "BOX64_REF=${{ github.event.inputs.box64_version }}" >> $GITHUB_ENV
+        else
+          echo "BOX64_REF=main" >> $GITHUB_ENV
+        fi
+        echo "Using Box64 version: $BOX64_REF"
 
-    - name: Clone Box64
+    - name: Clone specified version of Box64
       run: |
-        git clone https://github.com/ptitSeb/box64.git
+        git clone https://github.com/ptitSeb/box64
         cd box64
-        git checkout main
+        echo "Checking out version: $BOX64_REF"
+        git checkout $BOX64_REF
+        if git show-ref --verify --quiet refs/heads/$BOX64_REF; then
+          echo "Checked out branch $BOX64_REF, pulling latest changes"
+          git pull origin $BOX64_REF
+        fi
 
-    - name: Apply Android Patch (Fix fseeko64 + dlvsym + int128)
-      run: |
-        cd box64/src/elfs
-
-        # Fix missing fseeko64()
-        sed -i 's/fseeko64/fseeko/g' elfloader.c
-
-        # Remove dlvsym() usage — Android does not support versioned symbols
-        sed -i 's/dlvsym/dlsym/g' elfloader.c
-
-        # Ensure no leftover implicit dlvsym prototype
-        sed -i 's/.*dlvsym.*//g' elfloader.c
-
-        # Ensure missing __int128 is not used anywhere else (Android safe)
-        cd ..
-        grep -rl "__int128" . | xargs sed -i 's/__int128/long long/g'
-
-    - name: Configure Box64
+    - name: Get version and date info
+      id: version_info
       run: |
         cd box64
-        cmake -B build \
-            -G Ninja \
-            -DCMAKE_SYSTEM_NAME=Android \
-            -DCMAKE_ANDROID_NDK=$ANDROID_NDK_HOME \
-            -DCMAKE_SYSTEM_VERSION=21 \
-            -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
-            -DCMAKE_ANDROID_STL_TYPE=none \
-            -DANDROID=1 \
-            -DARM64=1 \
-            -DDYNAREC=1 \
-            -DCMAKE_BUILD_TYPE=Release
+        BOX64_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+        BUILD_DATE=$(date +%Y%m%d)
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        BRANCH_OR_TAG=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2>/dev/null || echo "detached-$COMMIT_HASH")
+
+        echo "BOX64_VERSION=$BOX64_VERSION" >> $GITHUB_ENV
+        echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+        echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+        echo "BRANCH_OR_TAG=$BRANCH_OR_TAG" >> $GITHUB_ENV
+
+        echo "BOX64_VERSION=$BOX64_VERSION" >> $GITHUB_OUTPUT
+        echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_OUTPUT
+        echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_OUTPUT
+        echo "BRANCH_OR_TAG=$BRANCH_OR_TAG" >> $GITHUB_OUTPUT
+
+        echo "Version: $BOX64_VERSION"
+        echo "Date: $BUILD_DATE"
+        echo "Commit: $COMMIT_HASH"
+        echo "Branch/Tag: $BRANCH_OR_TAG"
+        echo "Requested Version: $BOX64_REF"
 
     - name: Build Box64
       run: |
-        cd box64/build
-        ninja -j$(nproc)
+        cd box64
+        mkdir build && cd build
 
-    - name: Upload Result
+        cmake  -DWINLATOR_GLIBC=ON .. \
+                -DARM_DYNAREC=ON \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DBAD_SIGNAL=ON \
+                -DSD845=ON \
+                -DSD8G2=ON
+
+        make -j4
+        patchelf --set-interpreter /data/data/com.winlator/files/rootfs/usr/lib/ld-linux-aarch64.so.1 box64
+        strip --strip-all --keep-section=.comment --keep-section=.note* box64
+
+        tar -cJf box64-${BOX64_VERSION}-${BUILD_DATE}.tar.xz box64
+
+    - name: Verify file exists
+      run: |
+        cd box64/build
+        ls -la box64-*.tar.xz
+        echo "File size: $(du -h box64-${BOX64_VERSION}-${BUILD_DATE}.tar.xz)"
+
+    # ⬇️ Final step: Upload artifact only
+    - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: box64-android-build
-        path: box64/build/box64
+        name: box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}
+        path: box64/build/box64-${{ env.BOX64_VERSION }}-${{ env.BUILD_DATE }}.tar.xz
+
+    - name: Output completion message
+      run: |
+        echo "✅ Box64 build complete — artifact uploaded"
+        echo "File: box64-$BOX64_VERSION-$BUILD_DATE.tar.xz"
+        echo "Commit: $COMMIT_HASH"
