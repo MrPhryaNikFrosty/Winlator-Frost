@@ -10,27 +10,43 @@
   <img src="https://img.shields.io/github/downloads/MrPhryaNikFrosty/Winlator-Frost/total" alt="Total Downloads" width="150">
 </p>
 
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/Q74CNHJnq2)
+-----
+# ↓ Winlator@Frost Socials ↓
+
+​<p align="center">
+  <a href="https://discord.gg/Q74CNHJnq2">
+    <img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" width="150">
+  </a>
+</p>
+
+<p align="center">
+<a href="https://t.me/winfrost">
+  <img src="https://img.shields.io/badge/Telegram-Join-26A5E4?logo=telegram&logoColor=white"
+       width="150">
+</a>
+
+<p align="center">
+<a href="https://youtube.com/@winlatorfrostth?si=_eNJcZtAAw72a0Nd">
+  <img src="https://img.shields.io/badge/YouTube-Subscribe-FF0000?logo=youtube&logoColor=white"
+       width="150">
+</a>
+
+<p align="center">
+<a href="https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3">
+  <img src="https://img.shields.io/badge/Instagram-Follow-E4405F?logo=instagram&logoColor=white"
+       width="150">
+</a>
+
+<p align="center">
+<a href="https://www.tiktok.com/@winlatorfrostofficial.th?_r=1&_d=eib85f3adj7h7m&sec_uid=MS4wLjABAAAA0KcwzsvIilREgcDie4mC4PbzvHhfKq0U_U26HLRLMOnIx5sIa9Mz6H25rbPcJDlT&share_author_id=7526831142198281224&sharer_language=th&source=h5_t&u_code=elae3j0cl33be1&timestamp=1765619371&user_id=7526831142198281224&sec_user_id=MS4wLjABAAAA0KcwzsvIilREgcDie4mC4PbzvHhfKq0U_U26HLRLMOnIx5sIa9Mz6H25rbPcJDlT&item_author_type=1&utm_source=copy&utm_campaign=client_share&utm_medium=android&share_iid=7580528154281690887&share_link_id=afedff28-a6b0-4d77-a0e1-59ddb86dd95e&share_app_id=1180&ugbiz_name=ACCOUNT&ug_btm=b8727%2Cb7360&social_share_type=5&enable_checksum=1">
+  <img src="https://img.shields.io/badge/TikTok-Follow-000000?logo=tiktok&logoColor=white"
+       width="150">
+</a>
 
 ----
 
 # About Winlator@Frost
 Winlator@Frost is a simple and basic modification of the original winlator by [Brunodev85](https://github.com/brunodev85/winlator), offering many additional contents such as Box64, DXVK, Turnip and wide variety of box64 env to improve performance. It aims to run some Windows applications by using Wine and Box64 as the main core in order to work
-
------
-↓ Winlator@Frost Socials ↓
-
-[Winlator@Frost's Official YouTube channel, ran by Tanakorn](https://youtube.com/@winlatorfrostth?si=h0hQv0bwE7hY4yKO)​
-
-[The official Winlator@Frost Discord Server, ran by Tanakorn and Jay](https://discord.gg/Q74CNHJnq2)
-
-[Winlator@Frost's official Instagram account, ran by Tanakorn](https://www.instagram.com/winlator_frost_official.th?igsh=ZDdyOXB2OWlqZHR3)
-
-[Winlator@Frost's official TikTok account, ran by Tanakorn](https://www.tiktok.com/@winlatorfrostofficial.th?_t=ZS-8y1MU8YsJmh&_r=1)
-
-[Winlator@Frost's official Telegram channel, ran by Jay and Tanakorn](https://t.me/winfrost)
-
-----
 
 # Winlator@Frost Installation
 1. Download and install any versions of Frost from [GitHub Releases](https://github.com/MrPhryaNikFrosty/Winlator-Frost/releases)
