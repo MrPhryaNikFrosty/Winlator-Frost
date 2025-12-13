@@ -10,6 +10,8 @@
   <img src="https://img.shields.io/github/downloads/MrPhryaNikFrosty/Winlator-Frost/total" alt="Total Downloads" width="150">
 </p>
 
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/Q74CNHJnq2)
+
 ----
 
 # About Winlator@Frost
