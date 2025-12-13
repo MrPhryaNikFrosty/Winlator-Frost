@@ -57,21 +57,27 @@ Winlator@Frost is a simple and basic modification of the original winlator by [B
 - You can also try out Winlator@Frost GlibC 7.1.3 version from the releases and tags
 - For older or legacy version of Winlator@Frost which are not available in Github releases can be able to access it at [here](https://mega.nz/folder/dQtDzI7a#47pl7EQ8AWwY2jV-665ikQ)
 
-# Testing Videos of Winlator@Frost.
+# Testing Videos of Winlator@Frost by Tanakorn (founder of Winlator@Frost).
 ----
-- Test on Honor X9b (SD 6 GEN 1)
-[![Play on Youtube](https://i.ytimg.com/vi/yT8HeDDXYNk/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLBg6mwWOnCdGRZ_j0fr4rOyc_4oyQ)](https://youtu.be/yT8HeDDXYNk?si=WqEvuNUsxdjElomr)
+- Test on Honor X9b (Snapdragon 6 GEN 1, 12 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/yT8HeDDXYNk/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLBg6mwWOnCdGRZ_j0fr4rOyc_4oyQ)](https://youtube.com/playlist?list=PLQt8o_wwflScJtRl-yIkoGYS3691dFc6i&si=0PCWULzF8mPUnc0i)
 
-- Test on Poco F3 (SD 870)
-[![Play on Youtube](https://i.ytimg.com/vi/lWRubu4LITg/hqdefault.jpg?sqp=-oaymwFBCNACELwBSFryq4qpAzMIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB8AEB-AH-CYAC0AWKAgwIABABGC4gaChyMA8=&rs=AOn4CLCiWNAFDSSx8jICLbdoVhfUGxnDoA)](https://youtu.be/lWRubu4LITg?si=u0v8kX7HiKpdeo-1)
+- Test on Redmi 13C 5G (MediaTek Dimensity 6100+, 8 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/lbcyAVNdhoo/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLD2kXc2HlLg5ikTZO1ZqMRi0lBUyg)](https://youtube.com/playlist?list=PLQt8o_wwflSfmo8c_k7Zq8JO_Qeq3Bz52&si=5XOZ49XcCSDqmVRG)
 
-- Test on Honor Magic 5 (SD 8 GEN 2)
-[![Play on Youtube](https://i.ytimg.com/vi/lRmnb_3untM/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLD2qDb4xNO8AYoV0yAqvZoG2o-PkQ)](https://youtu.be/lRmnb_3untM?si=8bMl1BxodFHgOAnm)
+- Test on Poco F3 (Snapdragon 870, 8 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/lWRubu4LITg/hqdefault.jpg?sqp=-oaymwFBCNACELwBSFryq4qpAzMIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB8AEB-AH-CYAC0AWKAgwIABABGC4gaChyMA8=&rs=AOn4CLCiWNAFDSSx8jICLbdoVhfUGxnDoA)](https://youtube.com/playlist?list=PLQt8o_wwflSfzuWvMkz9ldeOVrVfHHsmJ&si=bhCpFG8zIM1mfWlK)
 
-- Test on Poco X5 (SD 695)
-[![Play on Youtube](https://i.ytimg.com/vi_webp/yQl-OPTIb3E/hqdefault.webp)](https://youtu.be/yQl-OPTIb3E?si=QcSX-oz1CfWwVmXb)
+- Test on Honor Magic 5 Pro (Snapdragon 8 GEN 2, 12 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/lRmnb_3untM/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLD2qDb4xNO8AYoV0yAqvZoG2o-PkQ)](https://youtube.com/playlist?list=PLQt8o_wwflScjZ-3iK2VKoppIA7QYnIPd&si=IfTcKFZTo0ifcVMg)
 
-- For more videos, search Winlator@Frost on YouTube or check out the official tests by Tanakorn via the YouTube channel!
+- Test on Poco X5 (Snapdragon 695, 8 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/tkLQdBwnhLA/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLA2oQ65c1nTemqBg7kmSBCP-2IoAg)](https://youtube.com/playlist?list=PLQt8o_wwflScoovvVbr8MuZDzg1DM2aez&si=3MvY_qCm55Z7rzlY)
+
+- Test on Honor X9a (Snapdragon 695, 8 GB RAM)
+[![Play on Youtube](https://i.ytimg.com/vi/h3UKe16kV6U/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLDeVaKNAUV8vo0_mDEjF9agDV3uAw)](https://youtube.com/playlist?list=PLQt8o_wwflSfwm1ZFH1QAXMm49gF7DY4h&si=0SM9Xsta0xhEyDmJ)
+
+- For more test videos, search Winlator@Frost on YouTube or check out the official tests by Tanakorn via the YouTube channel!
 
 ----
 
@@ -102,7 +108,7 @@ For older version of winlator (legacy) you can run it using `3.3COMPAT` or `4.0`
 ## Device
 - Android: 8.0 or newer
 - RAM: 3 ~ 4 GB are minimum requirements but 6 GB are recommended
-- ROM: 64 GB are minimum or depending on the games that you're going to play but it's highly recommended to have at least 128 GB and SD Card are also supported but some type of SD Card doesn't recognize as drive in winlator
+- ROM: 64 GB are minimum or depending on the games that you're going to play but it's highly recommended to have at least 128 GB or having a SD Card are also supported but some type of SD Card doesn't recognize as drive in winlator
 - Architecture: arm64-v8a are required
 
 ## Graphics Driver for device GPU
